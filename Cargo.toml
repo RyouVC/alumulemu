@@ -9,4 +9,5 @@ serde = "1.0.219"
 serde_json = "1.0.140"
 surrealdb = { version = "2.2.1", features = ["kv-rocksdb"] }
 tokio = { version = "1.44.0", features = ["full"] }
-tracing-subscriber = "0.3.19"
+tracing = { version = "0.1.41", features = ["log", "async-await"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "chrono", "serde_json"] }

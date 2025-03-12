@@ -1,3 +1,4 @@
+mod index;
 use axum::{
     Json, Router,
     http::StatusCode,
@@ -128,6 +129,8 @@ async fn create_example_games(db: &Surreal<Db>) -> surrealdb::Result<()> {
 
 #[tokio::main]
 async fn main() -> surrealdb::Result<()> {
+    tracing_subscriber::fmt::init();
+
     // create games directory
     if !std::path::Path::new("games/").exists() {
         std::fs::create_dir("games/").unwrap();
@@ -141,17 +144,17 @@ async fn main() -> surrealdb::Result<()> {
     db.use_ns("tinfoil").use_db("games").await?;
 
     // create example games
-    create_example_games(&db).await?;
+    create_example_games(&db).await.ok();
 
     // Test retrieval
     //let game: Option<Game> = db.select(("game", "example")).await?;
     //println!("Retrieved: {:?}", game);
 
     // jason
-    println!("JSONified: {:?}", jsonify_db(&db).await?);
+    tracing::info!("JSONified: {:?}", jsonify_db(&db).await?);
 
     // get the web thing working
-    tracing_subscriber::fmt::init();
+
     let app = Router::new()
         .route("/", get(|| async { Json(json!({"success": "connected"})) }))
         .route(
