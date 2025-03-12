@@ -1,0 +1,50 @@
+{
+        "bannerUrl": "https://img-eshop.cdn.nintendo.net/i/7137262b5a64d921e193653f8aa0b722925abc5680380ca0e18a5cfd91697f58.jpg",
+        "category": [
+            "Adventure",
+            "Action",
+            "RPG",
+            "Other"
+        ],
+        "description": "Forget everything you know about The Legend of Zelda games. Step into a world of discovery, exploration, and adventure in The Legend of Zelda: Breath of the Wild, a boundary-breaking new game in the acclaimed series. Travel across vast fields, through forests, and to mountain peaks as you discover what has become of the kingdom of Hyrule in this stunning Open-Air Adventure. Now on Nintendo Switch, your journey is freer and more open than ever. Take your system anywhere, and adventure as Link any way you like.\n",
+        "developer": null,
+        "frontBoxArt": null,
+        "iconUrl": "https://img-eshop.cdn.nintendo.net/i/d3c210e61e8487200fc4c344987243a60257838187a69a6a81c42d7447d5d192.jpg",
+        "id": "01007EF00011E000",
+        "intro": "STEP INTO A WORLD OF ADVENTURE",
+        "isDemo": false,
+        "key": null,
+        "languages": [
+            "ja",
+            "en",
+            "es",
+            "fr",
+            "de",
+            "it",
+            "nl",
+            "ru"
+        ],
+        "name": "The Legend of Zelda\u2122: Breath of the Wild",
+        "nsuId": 70010000000025,
+        "numberOfPlayers": 1,
+        "publisher": "Nintendo",
+        "rating": 10,
+        "ratingContent": [
+            "Fantasy Violence",
+            "Mild Suggestive Themes",
+            "Use of Alcohol"
+        ],
+        "region": null,
+        "releaseDate": 20170303,
+        "rightsId": "01007EF00011E0000000000000000000",
+        "screenshots": [
+            "https://img-eshop.cdn.nintendo.net/i/eb82bc845c62948e12a4b7c8c241a22bf6d2acc9cbe7db00898926d861adf0ae.jpg",
+            "https://img-eshop.cdn.nintendo.net/i/37559b8fa80cf0708c8dcef23ef4fea9af26d997a7c6f981565bc50eeaa3cc0f.jpg",
+            "https://img-eshop.cdn.nintendo.net/i/b478fce889ed0237b252978f046884121f6be959f5b4b62e4fc03970bd617647.jpg",
+            "https://img-eshop.cdn.nintendo.net/i/68f832d604ad2a85fa3dda00ae5345232fe271e01df40a48bb1fb2ed291f92f4.jpg",
+            "https://img-eshop.cdn.nintendo.net/i/0375d13a121f32ff06ef96aac1919b138f3ebe13e40cc0b2de7d39237b87fb86.jpg",
+            "https://img-eshop.cdn.nintendo.net/i/8f7854a3b7271d364e1e421aced946982235d22b420e1a0cec5296a62d97c225.jpg"
+        ],
+        "size": 15483273216,
+        "version": null
+}

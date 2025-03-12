@@ -2,6 +2,7 @@
 //! Tinfoil expects to read a json "index", which essentially just acts as a response format
 //! and lists all the files available for serving to the client.
 
+use axum::{response::{IntoResponse, Response}, Json};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -36,7 +37,7 @@ pub struct FileEntry {
     /// This path may also contain a `#`, which works similarly to RPM and pacman's `#` syntax,
     /// overriding the file name to be downloaded/saved as.
     /// For example, `/games/file/#MyGame.nsp` will download the file as `MyGame.nsp`.
-    pub path: String,
+    pub url: String,
     /// File size in bytes.
     pub size: u64,
 }
@@ -76,6 +77,12 @@ pub enum SourceList {
     /// Custom actions to be commited to the client's sources list.
     CustomAction(SourceAction),
 }
+#[derive(Debug, thiserror::Error, Serialize, Deserialize, Clone)]
+pub enum TinfoilError {
+    // #[error("{failure:?}")]
+    #[error("Failure: {0}")]
+    Failure(String),
+}
 
 // todo: something like this?
 #[derive(Serialize, Deserialize, Debug)]
@@ -84,6 +91,35 @@ pub enum TinfoilResponse {
     Success(Index),
     Failure(String),
     ThemeError(String),
+}
+
+impl IntoResponse for TinfoilResponse {
+    fn into_response(self) -> Response {
+        match self {
+            TinfoilResponse::Success(index) => index.into_response(),
+            TinfoilResponse::Failure(failure) =>  (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(failure)).into_response(),
+            TinfoilResponse::ThemeError(theme_error) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(theme_error)).into_response(),
+        }
+    }
+}
+
+impl From<Result<Index, String>> for TinfoilResponse {
+    fn from(result: Result<Index, String>) -> Self {
+        match result {
+            Ok(index) => index.into(),
+            Err(error) => TinfoilResponse::Failure(error)
+        }
+    }
+}
+
+impl From<TinfoilResponse> for Result<Index, String> {
+    fn from(response: TinfoilResponse) -> Self {
+        match response {
+            TinfoilResponse::Success(index) => Ok(index),
+            TinfoilResponse::Failure(error) => Err(error),
+            TinfoilResponse::ThemeError(error) => Err(error)
+        }
+    }
 }
 
 impl From<Index> for TinfoilResponse {
@@ -216,6 +252,30 @@ pub struct Index {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "themeError")]
     pub theme_error: Option<String>,
+}
+
+impl Index {
+    pub fn add_file(&mut self, path: &std::path::Path, prefix: &str) {
+        let metadata = std::fs::metadata(path).unwrap();
+        let size = metadata.len();
+        let prefix = prefix.strip_suffix("/").unwrap_or(prefix);
+        let url = format!("{prefix}/{}",
+            path.file_name().unwrap().to_string_lossy());
+
+        let file = FileEntry {
+            url,
+            size,
+        };
+
+        self.files.push(file);
+    }
+}
+
+impl IntoResponse for Index {
+    fn into_response(self) -> axum::response::Response {
+        let json = serde_json::to_string(&self).unwrap();
+        (axum::http::StatusCode::OK, json).into_response()
+    }
 }
 
 #[cfg(test)]
