@@ -78,10 +78,40 @@ pub enum SourceList {
 }
 
 // todo: something like this?
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
 pub enum TinfoilResponse {
     Success(Index),
     Failure(String),
     ThemeError(String),
+}
+
+impl From<Index> for TinfoilResponse {
+    fn from(index: Index) -> Self {
+        if let Some(failure) = index.failure {
+            TinfoilResponse::Failure(failure)
+        } else if let Some(theme_error) = index.theme_error {
+            TinfoilResponse::ThemeError(theme_error)
+        } else {
+            TinfoilResponse::Success(index)
+        }
+    }
+}
+
+impl From<TinfoilResponse> for Index {
+    fn from(response: TinfoilResponse) -> Self {
+        match response {
+            TinfoilResponse::Success(index) => index,
+            TinfoilResponse::Failure(failure) => Index {
+                failure: Some(failure),
+                ..Default::default()
+            },
+            TinfoilResponse::ThemeError(theme_error) => Index {
+                theme_error: Some(theme_error),
+                ..Default::default()
+            },
+        }
+    }
 }
 
 // {
