@@ -132,6 +132,7 @@ pub struct ClientCerts {
 /// Consider writing wrapper types that become serialized as this JSON format instead.
 /// See [`TinfoilResponse`] for an example.
 #[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
 pub struct Index {
     /// Message to display to the user on connection success.
     /// Can also be used as an MOTD (Message of the Day) for clients.
@@ -215,4 +216,50 @@ pub struct Index {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "themeError")]
     pub theme_error: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tinfoil_response() {
+        // let test_response = serde_json::json!({
+        //     "success": "Connection successful!",
+        //     "files": [],
+        //     "directories": [],
+        //     "headers": [],
+        //     "fichier_keys": [],
+        //     "locations": [],
+        //     "titledb": {},
+        //     "theme_blacklist": [],
+        //     "theme_whitelist": []
+        // });
+
+        // let response: TinfoilResponse = serde_json::from_value(test_response).unwrap();
+        // assert!(matches!(response, TinfoilResponse::Success(_)));
+
+        let index = Index {
+            success: Some("Connection successful!".to_string()),
+            ..Default::default()
+        };
+        let response: TinfoilResponse = index.into();
+
+        println!("{}", serde_json::to_string_pretty(&response).unwrap());
+        assert!(matches!(response, TinfoilResponse::Success(_)));
+
+        let raw_json = r#"{
+            "success": "Connection successful!"
+        }"#;
+
+        let index: Index = serde_json::from_str(raw_json).unwrap();
+        let response: TinfoilResponse = index.into();
+        assert!(matches!(response, TinfoilResponse::Success(_)));
+
+        // Test blank JSON object (empty index)
+        let raw_json = r#"{}"#;
+        let index: Index = serde_json::from_str(raw_json).unwrap();
+        let response: TinfoilResponse = index.into();
+        assert!(matches!(response, TinfoilResponse::Success(_)));
+    }
 }
