@@ -17,3 +17,5 @@ tower = "0.5.2"
 thiserror = "2.0.12"
 color-eyre = "0.6"
 regex = "1"
+chrono = "0.4.40"
+struson = { version = "0.6.0", features = ["serde"] }

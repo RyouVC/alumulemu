@@ -31,10 +31,22 @@ async fn main() -> color_eyre::Result<()> {
 
     // get the web thing working
     init_database().await?;
-    let us_titledb_file = std::fs::File::open("US.en.json").unwrap();
-    let us_titledb = TitleDBImport::from_json_reader(us_titledb_file)?;
-
-    us_titledb.import_to_db("US-en").await?;
+    tokio::spawn(async {
+        tracing::info!("Importing TitleDB...");
+        let us_titledb_file = std::fs::File::open("US.en.json").unwrap();
+        // let us_titledb_file = std::fs::File::open("src/zeld.json").unwrap();
+        // match TitleDBImport::from_json_reader(us_titledb_file) {
+        //     Ok(us_titledb) => {
+        //         if let Err(e) = us_titledb.import_to_db("US-en").await {
+        //             eprintln!("Error importing to DB: {}", e);
+        //         }
+        //     },
+        //     Err(e) => eprintln!("Error reading titledb: {}", e),
+        // },
+        let a = TitleDBImport::from_json_reader_streaming(us_titledb_file, "US-en").await;
+        
+        
+    });
 
     let app = create_router();
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

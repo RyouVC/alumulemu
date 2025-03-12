@@ -1,50 +1,99 @@
 {
-        "bannerUrl": "https://img-eshop.cdn.nintendo.net/i/7137262b5a64d921e193653f8aa0b722925abc5680380ca0e18a5cfd91697f58.jpg",
-        "category": [
-            "Adventure",
-            "Action",
-            "RPG",
-            "Other"
-        ],
-        "description": "Forget everything you know about The Legend of Zelda games. Step into a world of discovery, exploration, and adventure in The Legend of Zelda: Breath of the Wild, a boundary-breaking new game in the acclaimed series. Travel across vast fields, through forests, and to mountain peaks as you discover what has become of the kingdom of Hyrule in this stunning Open-Air Adventure. Now on Nintendo Switch, your journey is freer and more open than ever. Take your system anywhere, and adventure as Link any way you like.\n",
-        "developer": null,
-        "frontBoxArt": null,
-        "iconUrl": "https://img-eshop.cdn.nintendo.net/i/d3c210e61e8487200fc4c344987243a60257838187a69a6a81c42d7447d5d192.jpg",
-        "id": "01007EF00011E000",
-        "intro": "STEP INTO A WORLD OF ADVENTURE",
-        "isDemo": false,
-        "key": null,
-        "languages": [
-            "ja",
-            "en",
-            "es",
-            "fr",
-            "de",
-            "it",
-            "nl",
-            "ru"
-        ],
-        "name": "The Legend of Zelda\u2122: Breath of the Wild",
-        "nsuId": 70010000000025,
-        "numberOfPlayers": 1,
-        "publisher": "Nintendo",
-        "rating": 10,
-        "ratingContent": [
-            "Fantasy Violence",
-            "Mild Suggestive Themes",
-            "Use of Alcohol"
-        ],
-        "region": null,
-        "releaseDate": 20170303,
-        "rightsId": "01007EF00011E0000000000000000000",
-        "screenshots": [
-            "https://img-eshop.cdn.nintendo.net/i/eb82bc845c62948e12a4b7c8c241a22bf6d2acc9cbe7db00898926d861adf0ae.jpg",
-            "https://img-eshop.cdn.nintendo.net/i/37559b8fa80cf0708c8dcef23ef4fea9af26d997a7c6f981565bc50eeaa3cc0f.jpg",
-            "https://img-eshop.cdn.nintendo.net/i/b478fce889ed0237b252978f046884121f6be959f5b4b62e4fc03970bd617647.jpg",
-            "https://img-eshop.cdn.nintendo.net/i/68f832d604ad2a85fa3dda00ae5345232fe271e01df40a48bb1fb2ed291f92f4.jpg",
-            "https://img-eshop.cdn.nintendo.net/i/0375d13a121f32ff06ef96aac1919b138f3ebe13e40cc0b2de7d39237b87fb86.jpg",
-            "https://img-eshop.cdn.nintendo.net/i/8f7854a3b7271d364e1e421aced946982235d22b420e1a0cec5296a62d97c225.jpg"
-        ],
-        "size": 15483273216,
-        "version": null
+    "70010000000025": {
+         "bannerUrl": "https://img-eshop.cdn.nintendo.net/i/7137262b5a64d921e193653f8aa0b722925abc5680380ca0e18a5cfd91697f58.jpg",
+         "category": [
+             "Adventure",
+             "Action",
+             "RPG",
+             "Other"
+         ],
+         "description": "Forget everything you know about The Legend of Zelda games. Step into a world of discovery, exploration, and adventure in The Legend of Zelda: Breath of the Wild, a boundary-breaking new game in the acclaimed series. Travel across vast fields, through forests, and to mountain peaks as you discover what has become of the kingdom of Hyrule in this stunning Open-Air Adventure. Now on Nintendo Switch, your journey is freer and more open than ever. Take your system anywhere, and adventure as Link any way you like.\n",
+         "developer": null,
+         "frontBoxArt": null,
+         "iconUrl": "https://img-eshop.cdn.nintendo.net/i/d3c210e61e8487200fc4c344987243a60257838187a69a6a81c42d7447d5d192.jpg",
+         "id": "01007EF00011E000",
+         "intro": "STEP INTO A WORLD OF ADVENTURE",
+         "isDemo": false,
+         "key": null,
+         "languages": [
+             "ja",
+             "en",
+             "es",
+             "fr",
+             "de",
+             "it",
+             "nl",
+             "ru"
+         ],
+         "name": "The Legend of Zelda\u2122: Breath of the Wild",
+         "nsuId": 70010000000025,
+         "numberOfPlayers": 1,
+         "publisher": "Nintendo",
+         "rating": 10,
+         "ratingContent": [
+             "Fantasy Violence",
+             "Mild Suggestive Themes",
+             "Use of Alcohol"
+         ],
+         "region": null,
+         "releaseDate": 20170303,
+         "rightsId": "01007EF00011E0000000000000000000",
+         "screenshots": [
+             "https://img-eshop.cdn.nintendo.net/i/eb82bc845c62948e12a4b7c8c241a22bf6d2acc9cbe7db00898926d861adf0ae.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/37559b8fa80cf0708c8dcef23ef4fea9af26d997a7c6f981565bc50eeaa3cc0f.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/b478fce889ed0237b252978f046884121f6be959f5b4b62e4fc03970bd617647.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/68f832d604ad2a85fa3dda00ae5345232fe271e01df40a48bb1fb2ed291f92f4.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/0375d13a121f32ff06ef96aac1919b138f3ebe13e40cc0b2de7d39237b87fb86.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/8f7854a3b7271d364e1e421aced946982235d22b420e1a0cec5296a62d97c225.jpg"
+         ],
+         "size": 15483273216,
+         "version": null
+     },
+     "70010000000041": {
+         "bannerUrl": "https://img-eshop.cdn.nintendo.net/i/f29881291ad8ebcccc160f2071544e1eb80dd18860def45b6737ff64c10caf5b.jpg",
+         "category": [
+             "Action",
+             "Adventure",
+             "Shooter"
+         ],
+         "description": "Blaster Master Zero is an action-exploration game done in an 8-bit top-down & side-view style that hearkens back to the golden age of the NES. \n\nUsing the original 1988 NES title \"Blaster Master\" from Sunsoft as a base, Blaster Master Zero has many new additions, such as new areas and bosses, new gameplay elements such as extra sub-weapons, improved gameplay, a more robust scenario, refined and expanded exploration mechanics, and more. \n\nIn the near future on Earth, a young man named Jason Frudnick boards the battle vehicle SOPHIA III and sets off on an adventure in the subterranean depths of the planet. \n\nOn the side-view maps, take control of SOPHIA III and explore your surroundings as you search for the entrance to the dungeon where the area's boss lurks. \n\nOnce you find the dungeon entrance, exit SOPHIA III and make your way inside as Jason and take on the mutants inside in top-down mode.\n\nDefeat the mid-bosses and area bosses to acquire new items, sub-weapons, upgrades to SOPHIA III and Jason's equipment, and new abilities and move to the next area. \n\nWhat awaits Jason at the end of his long adventure...?",
+         "developer": null,
+         "frontBoxArt": null,
+         "iconUrl": "https://img-eshop.cdn.nintendo.net/i/b1c9cb1204a574456e3b94e3cc43b4936c9fb1c2a4864dedcc2ba8286890b13f.jpg",
+         "id": "0100225000FEE000",
+         "intro": "Mutant Scum Never Learns! Blaster Master is Back!",
+         "isDemo": false,
+         "key": null,
+         "languages": [
+             "ja",
+             "en",
+             "es",
+             "fr",
+             "de",
+             "it",
+             "pt"
+         ],
+         "name": "Blaster Master Zero",
+         "nsuId": 70010000000041,
+         "numberOfPlayers": 2,
+         "publisher": "Inti Creates",
+         "rating": 6,
+         "ratingContent": [
+             "Mild Fantasy Violence",
+             "In-Game Purchases"
+         ],
+         "region": null,
+         "releaseDate": 20170309,
+         "rightsId": "0100225000FEE0000000000000000000",
+         "screenshots": [
+             "https://img-eshop.cdn.nintendo.net/i/c1287645f51f433086c4b53df1f46b87ad9315fb960a1a5e28901c22e8dccbbc.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/705714f0ddf75f010eea897335c70cec3d3cb9793062b91055763aae67aae58d.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/b845045170de98dcebcb68f3bd864a02619de51d822a678f8dd370de55c64cf9.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/92f5bb723eb2a997bb11c89ecce0f395811472d48af3169fb978eafea5127732.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/6981a920a784b411cd34abbefbc82b980d048add68e028c11ac76481cc23473b.jpg",
+             "https://img-eshop.cdn.nintendo.net/i/59ff9176a9c03a89de64225fd57c2f34653081ab3160165470bdac78ff1d3406.jpg"
+         ],
+         "size": 379584512,
+         "version": null
+     }
 }
