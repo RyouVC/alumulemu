@@ -223,43 +223,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tinfoil_response() {
-        // let test_response = serde_json::json!({
-        //     "success": "Connection successful!",
-        //     "files": [],
-        //     "directories": [],
-        //     "headers": [],
-        //     "fichier_keys": [],
-        //     "locations": [],
-        //     "titledb": {},
-        //     "theme_blacklist": [],
-        //     "theme_whitelist": []
-        // });
-
-        // let response: TinfoilResponse = serde_json::from_value(test_response).unwrap();
-        // assert!(matches!(response, TinfoilResponse::Success(_)));
-
+    fn test_success_from_index() {
         let index = Index {
             success: Some("Connection successful!".to_string()),
             ..Default::default()
         };
         let response: TinfoilResponse = index.into();
-
-        println!("{}", serde_json::to_string_pretty(&response).unwrap());
         assert!(matches!(response, TinfoilResponse::Success(_)));
+    }
 
+    #[test]
+    fn test_parse_success_json() {
         let raw_json = r#"{
             "success": "Connection successful!"
         }"#;
-
         let index: Index = serde_json::from_str(raw_json).unwrap();
         let response: TinfoilResponse = index.into();
         assert!(matches!(response, TinfoilResponse::Success(_)));
+    }
 
-        // Test blank JSON object (empty index)
+    #[test]
+    fn test_parse_empty_json() {
         let raw_json = r#"{}"#;
         let index: Index = serde_json::from_str(raw_json).unwrap();
         let response: TinfoilResponse = index.into();
         assert!(matches!(response, TinfoilResponse::Success(_)));
+    }
+
+    #[test]
+    fn test_failure_case() {
+        let index = Index {
+            failure: Some("Error message".to_string()),
+            ..Default::default()
+        };
+        let response: TinfoilResponse = index.into();
+        assert!(matches!(response, TinfoilResponse::Failure(_)));
+    }
+
+    #[test]
+    fn test_theme_error_case() {
+        let index = Index {
+            theme_error: Some("Theme error".to_string()),
+            ..Default::default()
+        };
+        let response: TinfoilResponse = index.into();
+        assert!(matches!(response, TinfoilResponse::ThemeError(_)));
     }
 }
