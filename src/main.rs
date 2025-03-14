@@ -55,27 +55,27 @@ async fn download_titledb(client: &Client, region: &str, language: &str) -> Resu
     Ok(())
 }
 
+pub fn games_dir() -> String {
+    std::env::var("GAMES_DIR").unwrap_or("games/".to_string())
+}
+
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     tracing_subscriber::fmt::init();
     color_eyre::install().unwrap();
 
     // create games directory
-    if !std::path::Path::new("games/").exists() {
-        std::fs::create_dir("games/").unwrap();
-        println!("Directory 'games/' does not exist, creating...");
+    if !std::path::Path::new(&games_dir()).exists() {
+        std::fs::create_dir(games_dir()).unwrap();
+        println!("Directory '{}' does not exist, creating...", games_dir());
     } else {
-        println!("Directory 'games/' already exists, skipping...");
+        println!("Directory '{}' already exists, skipping...", games_dir());
     }
 
     // initialize database
-    //
-    // todo: support any backend but use rocksdb://database by default
-    // let db = Surreal::new::<RocksDb>("database").await?;
-    // db.use_ns("tinfoil").use_db("games").await?;
-
-    // get the web thing working
     init_database().await?;
+    
+    // run the TitleDB import in the background
     tokio::spawn(async {
         tracing::info!("Importing TitleDB...");
         let region = "US";

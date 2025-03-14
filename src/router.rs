@@ -1,5 +1,6 @@
 // use crate::db::scan_games_path;
 use crate::db::DB;
+use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 use crate::nsp::get_title_id_from_nsp;
 use crate::titledb::GameFileDataNaive;
@@ -106,7 +107,7 @@ async fn handle_error(error: BoxError) -> impl IntoResponse {
 }
 
 pub async fn list_files() -> AlumRes<Json<Index>> {
-    let games = scan_games_path("games/").await?;
+    let games = scan_games_path(&games_dir()).await?;
 
     tracing::trace!("Games retrieved: {:?}", games);
     Ok(Json(games))
@@ -119,7 +120,8 @@ pub async fn download_file(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let file = match tokio::fs::File::open(format!("games/{}", filename)).await {
+    let file_path = format!("{}/{}", games_dir(), filename);
+    let file = match tokio::fs::File::open(&file_path).await {
         Ok(file) => file,
         Err(_) => return Err(StatusCode::NOT_FOUND),
     };

@@ -81,24 +81,35 @@ impl GameFileDataNaive {
 
         if extension == "nsp" {
             let nsp_data = NspData::read_file(path).unwrap();
-            let title_id = nsp_data.get_title_id().unwrap();
+            tracing::debug!("Reading NSP file: {:?}", filename);
+            // Get title ID from NSP file if possible
+            if let Some(title_id) = nsp_data.get_title_id() {
+                tracing::debug!("Title ID: {:?}", title_id);
 
-            let title = Title::get_from_title_id("US_en", &title_id).await?;
+                // If we got a title ID, query the database for the title
+                let title = Title::get_from_title_id("US_en", &title_id).await?;
 
-            if let Some(title) = title {
-                return Ok(Self {
-                    name: title.name.unwrap_or_default(),
-                    title_id: Some(title.title_id.unwrap_or_default()),
-                    version: title.version,
-                    region: title.region,
-                    other_tags: Vec::new(),
-                    extension: Some(extension.to_string()),
-                });
-            } else {
-                let mut naive = Self::parse_from_filename(filename);
-                naive.title_id = Some(title_id);
-                return Ok(naive);
+
+                // If we got a title, return it
+                if let Some(title) = title {
+                    return Ok(Self {
+                        name: title.name.unwrap_or_default(),
+                        title_id: Some(title.title_id.unwrap_or_default()),
+                        version: title.version,
+                        region: title.region,
+                        other_tags: Vec::new(),
+                        extension: Some(extension.to_string()),
+                    });
+                // else we got a title ID but no title, we can still return the title ID
+                } else {
+                    let mut naive = Self::parse_from_filename(filename);
+                    naive.title_id = Some(title_id);
+                    return Ok(naive);
+                }
             }
+
+            // else not
+            return Ok(Self::parse_from_filename(filename));
         }
 
         Ok(Self::parse_from_filename(filename))
@@ -145,6 +156,10 @@ pub enum Index {
 pub struct TitleDbEntry {
     #[serde(rename(deserialize = "id"))]
     pub title_id: Option<String>,
+
+    #[serde(rename = "ids")]
+    #[serde(default)]
+    pub title_ids: Vec<String>,
 
     #[serde(default)]
     pub banner_url: Option<String>,
@@ -224,6 +239,10 @@ pub struct Title {
     // #[serde(rename(serialize = "title_id"))]
     // #[serde(default)]
     pub title_id: Option<String>,
+
+    /// Multiple Title IDs
+    #[serde(default)]
+    pub title_ids: Vec<String>,
 
     #[serde(default)]
     pub banner_url: Option<String>,
