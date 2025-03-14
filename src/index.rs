@@ -27,6 +27,25 @@ pub struct Title {
     pub rank: u32,
 }
 
+impl TryFrom<crate::titledb::Title> for Title {
+    type Error = crate::router::Error;
+
+    fn try_from(title: crate::titledb::Title) -> Result<Self, Self::Error> {
+        Ok(Title {
+            title_id: title.title_id.unwrap_or_default(),
+            name: title.name.unwrap_or_default(),
+            version: title.version.unwrap_or_default().parse().unwrap(),
+            region: title.region.unwrap_or_default(),
+            release_date: title.release_date.unwrap_or_default(),
+            rating: title.rating.unwrap_or_default() as u8,
+            publisher: title.publisher.unwrap_or_default(),
+            description: title.description.unwrap_or_default(),
+            size: title.size.unwrap_or_default(),
+            rank: 0,
+        })
+    }
+}
+
 /// A file entry in the tinfoil index.
 ///
 /// Reference: https://blawar.github.io/tinfoil/custom_index/
@@ -276,6 +295,11 @@ impl Index {
         let file = FileEntry { url, size };
 
         self.files.push(file);
+    }
+
+    /// Add a custom metadata entry for a title.
+    pub fn add_title_metadata(&mut self, title: Title) {
+        self.titledb.insert(title.title_id.clone(), title);
     }
 }
 
