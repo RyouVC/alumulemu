@@ -89,12 +89,11 @@ impl GameFileDataNaive {
                 // If we got a title ID, query the database for the title
                 let title = Title::get_from_title_id("US_en", &title_id).await?;
 
-
                 // If we got a title, return it
                 if let Some(title) = title {
                     return Ok(Self {
                         name: title.name.unwrap_or_default(),
-                        title_id: Some(title.title_id.unwrap_or_default()),
+                        title_id: Some(title_id),
                         version: title.version,
                         region: title.region,
                         other_tags: Vec::new(),
@@ -315,9 +314,20 @@ pub struct Title {
 
 impl Title {
     pub async fn get_from_title_id(lang: &str, title_id: &str) -> Result<Option<Self>> {
-        let query = format!("SELECT * FROM titles_{lang} WHERE titleId = $tid");
-        let mut query = DB.query(&query).bind(("tid", title_id.to_string())).await?;
-        let data: Option<Self> = query.take(0)?;
+        // If the title ID ends with *800, it's an update for a game,
+        // So we can replace it with 000 to get the base game
+        let title_id = if title_id.ends_with("800") {
+            title_id.replace("800", "000")
+        } else {
+            title_id.to_string()
+        };
+
+        let query =
+            format!("SELECT * FROM titles_{lang} WHERE titleId = $tid OR ids CONTAINS $tid");
+        let mut query = DB.query(&query).bind(("tid", title_id)).await?;
+        let mut data: Option<Self> = query.take(0)?;
+
+        // modify the title id
 
         // todo:
         // else, get otherApplicationId from index and query again
