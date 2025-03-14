@@ -43,7 +43,7 @@ async fn main() -> color_eyre::Result<()> {
         //     },
         //     Err(e) => eprintln!("Error reading titledb: {}", e),
         // },
-        let a = TitleDBImport::from_json_reader_streaming(us_titledb_file, "US-en").await;
+        let a = TitleDBImport::from_json_reader_streaming(us_titledb_file, "US_en").await;
     });
 
     let app = create_router();
