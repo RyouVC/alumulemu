@@ -3,3 +3,5 @@ games/
 database/
 US.en.json
 *.nsp
+*.xci
+languages.json

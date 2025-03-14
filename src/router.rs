@@ -68,55 +68,115 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
             continue;
         }
 
-        let game_data = GameFileDataNaive::parse(&filename);
+        let file_data_naive = GameFileDataNaive::parse(&filename);
+        
+        let extension = filename.rsplit('.').next().unwrap_or_default();
 
-        let extension = filename.rsplit('.').next().unwrap_or("nsp");
+        let game_meta = {
+            let filename_str = path.path().to_str().unwrap_or_default();
+            if extension == "nsp" {
+                let title_id = get_title_id_from_nsp(&path.path().to_str().unwrap_or_default()).unwrap();
+                let mut query = DB.query("SELECT * FROM $tbl WHERE titleId = $tid")
+                    .bind(("tbl", "games"))
+                    .bind(("tid", title_id)).await?;
+    
+                let data: Option<crate::titledb::Title> = query.take(0)?;
+                data
+            }
 
-        let formatted_name = if let Some(title_id) = game_data.title_id {
-            if correct_format.is_match(&filename) {
-                let name = filename
-                    .trim_end_matches(&format!(".{}", extension))
-                    .to_string();
-                format!("{}.{}", name, extension)
-            } else {
-                format!(
-                    "{} [{}][{}].{}",
-                    // god damn double spaces
-                    game_data
-                        .name
-                        .trim_end_matches(&format!(".{}", extension))
-                        .split_whitespace()
-                        .collect::<Vec<&str>>()
-                        .join(" "),
-                    title_id,
-                    game_data.version.unwrap_or_else(|| "v0".to_string()),
-                    extension
-                )
+            else {
+                None
+            }
+        };
+
+        let game_data = if let Some(game_data) = game_meta {
+            GameFileDataNaive {
+                name: game_data.name.unwrap_or_default(),
+                title_id: Some(game_data.title_id.unwrap_or_default()),
+                extension: Some(extension.to_string()),
+                version: game_data.version,
+                other_tags: Vec::new(),
+                region: game_data.region
             }
         } else {
-            // if it's NSP, try to get title ID from TIK file embedded in NSP
-            let title_id = if filename.ends_with(".nsp") {
-                match get_title_id_from_nsp(path.path().to_str().unwrap_or_default()) {
-                    Ok(id) => id,
-                    Err(_) => "00000000AAAA0000".to_string(), // if it errors out we just use the fallback title ID
-                }
-            } else {
-                "00000000AAAA0000".to_string()
-            };
+            GameFileDataNaive::parse(&filename)
+        };
 
+        let formatted_name = {
             format!(
-                "{} [{}][v0].{}",
-                // get the double spaces OUT
+                "{} [{}][{}].{}",
+                // god damn double spaces
                 game_data
                     .name
                     .trim_end_matches(&format!(".{}", extension))
                     .split_whitespace()
                     .collect::<Vec<&str>>()
                     .join(" "),
-                title_id,
+                game_data.title_id.unwrap_or_else(|| "00000000AAAA0000".to_string()),
+                game_data.version.unwrap_or_else(|| "v0".to_string()),
                 extension
             )
         };
+
+        tracing::info!("Formatted name: {}", formatted_name);
+
+        // let formatted_name = if let Some(title_id) = game_data.title_id {
+        //     if correct_format.is_match(&filename) {
+        //         let name = filename
+        //             .trim_end_matches(&format!(".{}", extension))
+        //             .to_string();
+        //         format!("{}.{}", name, extension)
+        //     } else {
+        //         format!(
+        //             "{} [{}][{}].{}",
+        //             // god damn double spaces
+        //             game_data
+        //                 .name
+        //                 .trim_end_matches(&format!(".{}", extension))
+        //                 .split_whitespace()
+        //                 .collect::<Vec<&str>>()
+        //                 .join(" "),
+        //             title_id,
+        //             game_data.version.unwrap_or_else(|| "v0".to_string()),
+        //             extension
+        //         )
+        //     }
+        // } else {
+        //     // if it's NSP, try to get title ID from TIK file embedded in NSP
+        //     let title_id = if filename.ends_with(".nsp") {
+        //         match get_title_id_from_nsp(path.path().to_str().unwrap_or_default()) {
+        //             Ok(id) => id,
+        //             Err(_) => "00000000AAAA0000".to_string(), // if it errors out we just use the fallback title ID
+        //         }
+        //     } else {
+        //         "00000000AAAA0000".to_string()
+        //     };
+
+        //     // query surrealdb
+        //     let game_meta = DB.query("SELECT * FROM $tbl WHERE titleId = $tid")
+        //         .bind(("tbl", "games"))
+        //         .bind(("tid", title_id)).await?;
+
+        //     let game_data: Option<crate::titledb::Title> = game_meta.take(0)?;
+
+        //     if let Some(game_data) = game_data {
+        //         // whatever the shit
+
+        //     }
+
+        //     format!(
+        //         "{} [{}][v0].{}",
+        //         // get the double spaces OUT
+        //         game_data
+        //             .name
+        //             .trim_end_matches(&format!(".{}", extension))
+        //             .split_whitespace()
+        //             .collect::<Vec<&str>>()
+        //             .join(" "),
+        //         title_id,
+        //         extension
+        //     )
+        // };
 
         idx.add_file(&path.path(), "/api/get_game", &formatted_name);
     }
