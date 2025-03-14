@@ -19,3 +19,4 @@ color-eyre = "0.6"
 regex = "1"
 chrono = "0.4.40"
 struson = { version = "0.6.0", features = ["serde"] }
+binrw = "0.14.1"

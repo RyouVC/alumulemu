@@ -2,7 +2,10 @@
 //! Tinfoil expects to read a json "index", which essentially just acts as a response format
 //! and lists all the files available for serving to the client.
 
-use axum::{response::{IntoResponse, Response}, Json};
+use axum::{
+    Json,
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -97,8 +100,14 @@ impl IntoResponse for TinfoilResponse {
     fn into_response(self) -> Response {
         match self {
             TinfoilResponse::Success(index) => index.into_response(),
-            TinfoilResponse::Failure(failure) =>  (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(failure)).into_response(),
-            TinfoilResponse::ThemeError(theme_error) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(theme_error)).into_response(),
+            TinfoilResponse::Failure(failure) => {
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(failure)).into_response()
+            }
+            TinfoilResponse::ThemeError(theme_error) => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(theme_error),
+            )
+                .into_response(),
         }
     }
 }
@@ -107,7 +116,7 @@ impl From<Result<Index, String>> for TinfoilResponse {
     fn from(result: Result<Index, String>) -> Self {
         match result {
             Ok(index) => index.into(),
-            Err(error) => TinfoilResponse::Failure(error)
+            Err(error) => TinfoilResponse::Failure(error),
         }
     }
 }
@@ -117,7 +126,7 @@ impl From<TinfoilResponse> for Result<Index, String> {
         match response {
             TinfoilResponse::Success(index) => Ok(index),
             TinfoilResponse::Failure(error) => Err(error),
-            TinfoilResponse::ThemeError(error) => Err(error)
+            TinfoilResponse::ThemeError(error) => Err(error),
         }
     }
 }
@@ -255,17 +264,16 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn add_file(&mut self, path: &std::path::Path, prefix: &str) {
+    pub fn add_file(&mut self, path: &std::path::Path, prefix: &str, suffix: &str) {
         let metadata = std::fs::metadata(path).unwrap();
         let size = metadata.len();
         let prefix = prefix.strip_suffix("/").unwrap_or(prefix);
-        let url = format!("{prefix}/{}",
-            path.file_name().unwrap().to_string_lossy());
+        let url = format!(
+            "{prefix}/{}#{suffix}",
+            path.file_name().unwrap().to_string_lossy()
+        );
 
-        let file = FileEntry {
-            url,
-            size,
-        };
+        let file = FileEntry { url, size };
 
         self.files.push(file);
     }

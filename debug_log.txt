@@ -1,0 +1,307 @@
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final custom path: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final custom path: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final custom path: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final custom path: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final prefix: /api/get_game#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final prefix: /api/get_game#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final prefix: /api/get_game#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final prefix: /api/get_game#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final path: "games/example_game#example_game [000000000000AAAA] [v0].nsp"
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final path: "games/example_game#example_game [000000000000AAAA] [v0].nsp"
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game.nsp#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Parsed game data: GameFileDataNaive { name: "example_game_2.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final URL: /api/get_game/example_game_2.nsp#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Parsed game data: GameFileDataNaive { name: "Tinfoil .nsp", title_id: Some("050000BADDAD0000"), version: Some("v1"), region: None, other_tags: ["19.0"], extension: Some("nsp") }
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final URL: /api/get_game/Tinfoil [050000BADDAD0000][19.0][v1].nsp#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Parsed game data: GameFileDataNaive { name: "Terraria  .nsp", title_id: Some("0100E46006708000"), version: Some("v0"), region: None, other_tags: [], extension: Some("nsp") }
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final URL: /api/get_game/Terraria [0100E46006708000] [v0].nsp#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Parsed game data: GameFileDataNaive { name: "example_game.nsp", title_id: None, version: None, region: None, other_tags: [], extension: Some("nsp") }
+Created default name: example_game [000000000000AAAA] [v0]
+New path: "example_game.nsp#example_game [000000000000AAAA] [v0].nsp"
+
+Original filename: example_game.nsp
+Created default name: example_game [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game [000000000000AAAA] [v0].nsp
+
+Original filename: example_game_2.nsp
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final prefix: /api/get_game#example_game_2 [000000000000AAAA] [v0].nsp
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final prefix: /api/get_game#Tinfoil  [050000BADDAD0000] [v1].nsp
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final prefix: /api/get_game#Terraria [0100E46006708000] [v0].nsp
+
+Original filename: example_game.nsp
+Created default name: example_game [000000000000AAAA] [v0]
+Final prefix: /api
+
+Original filename: example_game_2.nsp
+Created default name: example_game_2 [000000000000AAAA] [v0]
+Final prefix: /api
+
+Original filename: Tinfoil [050000BADDAD0000][19.0][v1].nsp
+Formatted new name: Tinfoil  [050000BADDAD0000] [v1]
+Final prefix: /api
+
+Original filename: Terraria [0100E46006708000] [v0].nsp
+Using original filename (trimmed): Terraria [0100E46006708000] [v0]
+Final prefix: /api
