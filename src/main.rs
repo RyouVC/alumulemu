@@ -97,7 +97,7 @@ async fn main() -> color_eyre::Result<()> {
         // },
         let _ = TitleDBImport::from_json_reader_streaming(
             us_titledb_file,
-            &format!("{}.{}.json", region, language),
+            &format!("{region}_{language}"),
         )
         .await;
         std::fs::remove_file(format!("{}.{}.json", region, language)).unwrap();
