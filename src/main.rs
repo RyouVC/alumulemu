@@ -74,15 +74,14 @@ async fn main() -> color_eyre::Result<()> {
 
     // initialize database
     init_database().await?;
-    
+
     // run the TitleDB import in the background
     tokio::spawn(async {
         tracing::info!("Importing TitleDB...");
-        let region = "US";
-        let language = "en";
-        // TODO: replace this with an actual config impl
+        let region = std::env::var("REGION").unwrap_or("US".to_string());
+        let language = std::env::var("LANGUAGE").unwrap_or("en".to_string());
         let client = Client::new();
-        download_titledb(&client, region, language).await.unwrap();
+        download_titledb(&client, &region, &language).await.unwrap();
 
         let path = format!("{}.{}.json", region, language);
         let us_titledb_file = std::fs::File::open(path).unwrap();
