@@ -1,8 +1,8 @@
-use crate::db::DB;
+use crate::{db::DB, nsp::NspData};
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
 use struson::reader::{JsonReader, JsonStreamReader};
 use surrealdb::sql::Thing;
 
@@ -25,7 +25,7 @@ pub struct GameFileDataNaive {
 }
 
 impl GameFileDataNaive {
-    pub fn parse(filename: &str) -> Self {
+    pub fn parse_from_filename(filename: &str) -> Self {
         // the name is regex stripped by the tags and extension
         let regex = Regex::new(r"\[(.*?)\]").unwrap();
         // First, extract the extension
@@ -73,6 +73,35 @@ impl GameFileDataNaive {
             extension,
             other_tags,
         }
+    }
+
+    pub async fn get(path: &Path) -> Result<Self> {
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        let extension = path.extension().unwrap_or_default().to_str().unwrap();
+
+        if extension == "nsp" {
+            let nsp_data = NspData::read_file(path).unwrap();
+            let title_id = nsp_data.get_title_id().unwrap();
+
+            let title = Title::get_from_title_id("US_en", &title_id).await?;
+
+            if let Some(title) = title {
+                return Ok(Self {
+                    name: title.name.unwrap_or_default(),
+                    title_id: Some(title.title_id.unwrap_or_default()),
+                    version: title.version,
+                    region: title.region,
+                    other_tags: Vec::new(),
+                    extension: Some(extension.to_string()),
+                });
+            } else {
+                let mut naive = Self::parse_from_filename(filename);
+                naive.title_id = Some(title_id);
+                return Ok(naive);
+            }
+        }
+
+        Ok(Self::parse_from_filename(filename))
     }
 }
 
@@ -265,6 +294,19 @@ pub struct Title {
     pub publisher: Option<String>,
 }
 
+impl Title {
+    pub async fn get_from_title_id(lang: &str, title_id: &str) -> Result<Option<Self>> {
+        let query = format!("SELECT * FROM titles_{lang} WHERE titleId = $tid");
+        let mut query = DB.query(&query).bind(("tid", title_id.to_string())).await?;
+        let data: Option<Self> = query.take(0)?;
+
+        // todo:
+        // else, get otherApplicationId from index and query again
+
+        Ok(data)
+    }
+}
+#[tracing::instrument(skip(title), fields(title_id = title.title_id.clone(), nsuid = title.nsu_id.unwrap_or_default()))]
 async fn import_entry_to_db(title: TitleDbEntry, db_sfx: &str) -> Result<()> {
     let table_name = format!("titles_{}", db_sfx);
     let nsuid = title.nsu_id.unwrap_or_default();
@@ -273,7 +315,7 @@ async fn import_entry_to_db(title: TitleDbEntry, db_sfx: &str) -> Result<()> {
     let nsuid_str = nsuid.to_string(); // Convert u64 to String
     let _ent: Option<Title> = DB.upsert((&table_name, &nsuid_str)).content(title).await?;
 
-    tracing::debug!(
+    tracing::trace!(
         "Imported title: {name:?} ([{tid:?}]) ({nsuid:?})",
         name = name,
         tid = title_id,

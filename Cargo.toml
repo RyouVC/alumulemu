@@ -20,3 +20,4 @@ regex = "1"
 chrono = "0.4.40"
 struson = { version = "0.6.0", features = ["serde"] }
 binrw = "0.14.1"
+jwalk = "0.8.1"
