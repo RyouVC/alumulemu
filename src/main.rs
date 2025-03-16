@@ -1,6 +1,7 @@
 mod db;
 mod index;
 mod nsp;
+mod nst;
 mod router;
 mod titledb;
 

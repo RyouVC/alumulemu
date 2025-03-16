@@ -7,3 +7,4 @@ US.en.json
 *.xci
 languages.json
 .vscode
+nstool_output.txt
