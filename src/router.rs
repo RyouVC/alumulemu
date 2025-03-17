@@ -5,18 +5,21 @@ use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 use crate::nsp::get_title_id_from_nsp;
 use crate::titledb::GameFileDataNaive;
+use axum::middleware::{self, Next};
 use axum::{
     BoxError, Json, Router,
+    body::Body,
     error_handling::{HandleError, HandleErrorLayer},
     extract::Path as HttpPath,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use http::Request;
 use std::env;
 use std::path::Path;
 use tokio_util::io::ReaderStream;
-
 // #[derive(Debug, serde::Serialize, serde::Deserialize)]
 // pub struct ErrorResponse {
 //     pub failure: String,
@@ -142,10 +145,48 @@ pub async fn download_file(
     Ok(response)
 }
 
+async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    // get password :tm:
+    let username = env::var("AUTH_USERNAME").ok();
+    let password = env::var("AUTH_PASSWORD").ok();
+
+    // no password just dont care
+    if username.is_none() || password.is_none() {
+        return Ok(next.run(req).await);
+    }
+
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if auth_str.starts_with("Basic ") {
+                let credentials = auth_str.trim_start_matches("Basic ").trim();
+                if let Ok(decoded) = BASE64.decode(credentials) {
+                    if let Ok(decoded_str) = String::from_utf8(decoded) {
+                        let parts: Vec<&str> = decoded_str.splitn(2, ':').collect();
+                        if parts.len() == 2
+                            && parts[0] == username.unwrap()
+                            && parts[1] == password.unwrap()
+                        {
+                            return Ok(next.run(req).await);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // bro broke it :skull:
+    let mut response = (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    response.headers_mut().insert(
+        axum::http::header::WWW_AUTHENTICATE,
+        axum::http::header::HeaderValue::from_static("Basic"),
+    );
+    Ok(response)
+}
+
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(list_files))
         .route("/api/get_game/{filename}", get(download_file))
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+        .layer(middleware::from_fn(basic_auth))
     // .layer(tower::ServiceBuilder::new().layer(HandleErrorLayer::new(handle_error)))
 }

@@ -92,10 +92,12 @@ name = "alumulemu"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "binrw",
  "chrono",
  "color-eyre",
  "futures-util",
+ "http",
  "indicatif",
  "jwalk",
  "regex",
