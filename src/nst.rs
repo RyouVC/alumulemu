@@ -3,15 +3,15 @@ use std::arch::x86_64::cmpxchg16b;
 use regex::Regex;
 
 #[derive(Debug)]
-struct ContentMeta {
-    title_id: String,
-    version: String,
-    content_type: u8,
-    attributes: u32,
-    storage_id: u8,
-    content_install_type: u8,
-    required_download_system_version: String,
-    digest: String,
+pub struct ContentMeta {
+    pub title_id: String,
+    pub version: String,
+    pub content_type: u8,
+    pub attributes: u32,
+    pub storage_id: u8,
+    pub content_install_type: u8,
+    pub required_download_system_version: String,
+    pub digest: String,
 }
 
 // all of this is just placeholder stuff until we can get our own rust impl going

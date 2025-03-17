@@ -1,11 +1,11 @@
-use crate::{db::DB, nsp::NspData};
+use crate::nst::{get_title_id_and_version, parse_cnmt_output, run_nstool};
+use crate::{db::DB, db::NspMetadata, nsp::NspData};
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
 use struson::reader::{JsonReader, JsonStreamReader};
 use surrealdb::sql::Thing;
-
 /// Represents a naive game data type, parsed with regex
 ///
 /// Example: `Video Game [TITLEID][v0][US].nsp`
@@ -75,25 +75,47 @@ impl GameFileDataNaive {
         }
     }
 
-    pub async fn get(path: &Path) -> Result<Self> {
+    pub async fn get(path: &Path, all_metadata: &[NspMetadata]) -> Result<Self> {
         let filename = path.file_name().unwrap().to_str().unwrap();
         let extension = path.extension().unwrap_or_default().to_str().unwrap();
 
         if extension == "nsp" {
-            let nsp_data = NspData::read_file(path).unwrap();
-            tracing::debug!("Reading NSP file: {:?}", filename);
-            // Get title ID from NSP file if possible
-            if let Some(title_id) = nsp_data.get_title_id() {
+            //let nsp_data = NspData::read_file(path).unwrap();
+            //let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+            if let Some(existing_metadata) = all_metadata
+                .iter()
+                .find(|m| m.path == path.to_str().unwrap())
+            {
+                tracing::debug!("Found cached metadata for {}", path.display());
+                let mut naive = Self::parse_from_filename(filename);
+                naive.title_id = Some(existing_metadata.title_id.clone());
+                return Ok(naive);
+            } else {
+                tracing::debug!("Reading NSP file: {:?}", filename);
+                let cnmt_output = run_nstool(path.to_str().unwrap());
+                let cnmt = parse_cnmt_output(&cnmt_output);
+                let (title_id, version) = get_title_id_and_version(cnmt);
                 tracing::debug!("Title ID: {:?}", title_id);
 
-                // If we got a title ID, query the database for the title
+                let metadata = NspMetadata {
+                    path: path.to_str().unwrap().to_string(),
+                    title_id: title_id.clone(),
+                    version: version.clone(),
+                };
+                if let Err(e) = metadata.save().await {
+                    tracing::warn!("Failed to save metadata: {}", e);
+                }
+
+                // Only query title DB for new files
+                let title_query_start = std::time::Instant::now();
                 let title = Title::get_from_title_id("US_en", &title_id).await?;
+                tracing::debug!("Title query took {:?}", title_query_start.elapsed());
 
                 // If we got a title, return it
                 if let Some(title) = title {
                     return Ok(Self {
                         name: title.name.unwrap_or_default(),
-                        title_id: Some(title_id),
+                        title_id: Some(title_id.to_string()),
                         version: title.version,
                         region: title.region,
                         other_tags: Vec::new(),
@@ -102,13 +124,10 @@ impl GameFileDataNaive {
                 // else we got a title ID but no title, we can still return the title ID
                 } else {
                     let mut naive = Self::parse_from_filename(filename);
-                    naive.title_id = Some(title_id);
+                    naive.title_id = Some(title_id.to_string());
                     return Ok(naive);
                 }
             }
-
-            // else not
-            return Ok(Self::parse_from_filename(filename));
         }
 
         Ok(Self::parse_from_filename(filename))

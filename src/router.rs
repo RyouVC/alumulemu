@@ -1,5 +1,6 @@
 // use crate::db::scan_games_path;
 use crate::db::DB;
+use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 use crate::nsp::get_title_id_from_nsp;
@@ -55,7 +56,7 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
     let mut idx = Index::default();
     let walker = jwalk::WalkDir::new(path);
     let paths = walker.into_iter();
-
+    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
     for entry in paths {
         let path = entry.map_err(|e| Error::Error(color_eyre::eyre::eyre!(e.to_string())))?;
         let filename = path.file_name().to_string_lossy().into_owned();
@@ -68,7 +69,7 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
         {
             continue;
         }
-        let game_data = GameFileDataNaive::get(&path.path()).await?;
+        let game_data = GameFileDataNaive::get(&path.path(), &all_metadata).await?;
         // println!("{:?}", game_data);
 
         let formatted_name = {
