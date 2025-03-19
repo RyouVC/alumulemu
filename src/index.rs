@@ -283,14 +283,25 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn add_file(&mut self, path: &std::path::Path, prefix: &str, suffix: &str) {
+    pub fn add_file(
+        &mut self,
+        path: &std::path::Path,
+        prefix: &str,
+        suffix: &str,
+        title_id: Option<&str>,
+    ) {
         let metadata = std::fs::metadata(path).unwrap();
         let size = metadata.len();
         let prefix = prefix.strip_suffix("/").unwrap_or(prefix);
-        let url = format!(
-            "{prefix}/{}#{suffix}",
-            path.file_name().unwrap().to_string_lossy()
-        );
+
+        let url = if let Some(tid) = title_id {
+            format!("{prefix}/{tid}#{suffix}")
+        } else {
+            format!(
+                "{prefix}/{}#{suffix}",
+                path.file_name().unwrap().to_string_lossy()
+            )
+        };
 
         let file = FileEntry { url, size };
 

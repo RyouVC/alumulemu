@@ -82,7 +82,11 @@ async fn main() -> color_eyre::Result<()> {
         let region = std::env::var("REGION").unwrap_or("US".to_string());
         let language = std::env::var("LANGUAGE").unwrap_or("en".to_string());
         let client = Client::new();
-        download_titledb(&client, &region, &language).await.unwrap();
+        if !std::path::Path::new(&format!("{}.{}.json", region, language)).exists() {
+            download_titledb(&client, &region, &language).await.unwrap();
+        } else {
+            tracing::info!("TitleDB .json already exists, skipping...");
+        }
 
         let path = format!("{}.{}.json", region, language);
         let us_titledb_file = std::fs::File::open(path).unwrap();
@@ -100,7 +104,8 @@ async fn main() -> color_eyre::Result<()> {
             &format!("{region}_{language}"),
         )
         .await;
-        std::fs::remove_file(format!("{}.{}.json", region, language)).unwrap();
+        //std::fs::remove_file(format!("{}.{}.json", region, language)).unwrap();
+        tracing::info!("TitleDB downloaded, Alumulemu running...")
     });
 
     let app = create_router();

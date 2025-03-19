@@ -73,25 +73,24 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
             continue;
         }
         let game_data = GameFileDataNaive::get(&path.path(), &all_metadata).await?;
-        // println!("{:?}", game_data);
-
+        println!("{:?}", game_data);
+        let title_id = game_data
+            .title_id
+            .clone()
+            .unwrap_or_else(|| "00000000AAAA0000".to_string());
         let formatted_name = {
             match game_data.extension {
                 Some(ext) => format!(
                     "{} [{}][{}].{}",
-                    game_data.name,
-                    game_data
-                        .title_id
-                        .unwrap_or_else(|| "00000000AAAA0000".to_string()),
+                    game_data.name.trim().trim_end_matches(".nsp"),
+                    title_id,
                     game_data.version.unwrap_or_else(|| "v0".to_string()),
                     ext
                 ),
                 None => format!(
                     "{} [{}][{}]",
-                    game_data.name,
-                    game_data
-                        .title_id
-                        .unwrap_or_else(|| "00000000AAAA0000".to_string()),
+                    game_data.name.trim().trim_end_matches(".nsp"),
+                    title_id,
                     game_data.version.unwrap_or_else(|| "v0".to_string())
                 ),
             }
@@ -99,7 +98,12 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
 
         tracing::trace!("Formatted name: {}", formatted_name);
 
-        idx.add_file(&path.path(), "/api/get_game", &formatted_name);
+        idx.add_file(
+            &path.path(),
+            "/api/get_game",
+            &formatted_name,
+            Some(&title_id),
+        );
     }
 
     Ok(idx)
@@ -118,13 +122,39 @@ pub async fn list_files() -> AlumRes<Json<Index>> {
 }
 
 pub async fn download_file(
-    HttpPath(filename): HttpPath<String>,
+    HttpPath(title_id): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    if filename.contains("..") {
+    if title_id.contains("..") {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let file_path = format!("{}/{}", games_dir(), filename);
+    tracing::debug!("Looking for title ID: {}", title_id);
+
+    let all_metadata = NspMetadata::get_all()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::debug!("Found {} metadata entries", all_metadata.len());
+
+    // Debug print all title IDs
+    for metadata in all_metadata.iter() {
+        tracing::debug!("DB title ID: {}", metadata.title_id);
+    }
+
+    let file_path = all_metadata
+        .iter()
+        .find(|m| {
+            tracing::debug!("Comparing {} with {}", m.title_id, title_id);
+            m.title_id == title_id
+        })
+        .map(|m| m.path.clone())
+        .ok_or_else(|| {
+            tracing::error!("No matching title ID found");
+            StatusCode::NOT_FOUND
+        })?;
+
+    tracing::debug!("Found file path: {}", file_path);
+
     let file = match tokio::fs::File::open(&file_path).await {
         Ok(file) => file,
         Err(_) => return Err(StatusCode::NOT_FOUND),
@@ -132,6 +162,11 @@ pub async fn download_file(
 
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);
+
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("game.nsp");
 
     let response = Response::builder()
         .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -185,7 +220,7 @@ async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCo
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(list_files))
-        .route("/api/get_game/{filename}", get(download_file))
+        .route("/api/get_game/{title_id}", get(download_file))
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
         .layer(middleware::from_fn(basic_auth))
     // .layer(tower::ServiceBuilder::new().layer(HandleErrorLayer::new(handle_error)))

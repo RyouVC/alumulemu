@@ -30,6 +30,11 @@ impl NspMetadata {
             .await?;
         Ok(created)
     }
+
+    pub async fn delete_cache() -> surrealdb::Result<()> {
+        let _: Vec<NspMetadata> = DB_2.delete("nsp_metadata").await?;
+        Ok(())
+    }
 }
 pub static DB: LazyLock<Surreal<Any>> = LazyLock::new(Surreal::init);
 pub static DB_2: LazyLock<Surreal<Any>> = LazyLock::new(Surreal::init);
@@ -45,4 +50,15 @@ pub async fn init_database() -> surrealdb::Result<()> {
     DB.use_ns("tinfoil").use_db("games").await?;
     DB_2.use_ns("tinfoil").use_db("stored").await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_delete_cache() {
+        init_database().await.unwrap();
+        NspMetadata::delete_cache().await.unwrap();
+    }
 }
