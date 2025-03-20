@@ -9,3 +9,4 @@ languages.json
 .vscode
 nstool_output.txt
 stored_database/
+users_database/

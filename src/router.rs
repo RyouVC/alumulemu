@@ -1,30 +1,49 @@
 // use crate::db::scan_games_path;
-use crate::db::DB;
+use crate::db::DB_3;
 use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 use crate::nsp::get_title_id_from_nsp;
 use crate::titledb::GameFileDataNaive;
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHash, PasswordVerifier},
+};
 use axum::middleware::{self, Next};
 use axum::{
     BoxError, Json, Router,
     body::Body,
     error_handling::{HandleError, HandleErrorLayer},
     extract::Path as HttpPath,
+    extract::State,
     http::{StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::get,
+    response::{Html, IntoResponse, Response},
+    routing::{delete, get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::Request;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
+use surrealdb::Surreal;
+use surrealdb::engine::remote::ws::Client;
 use tokio_util::io::ReaderStream;
 // #[derive(Debug, serde::Serialize, serde::Deserialize)]
 // pub struct ErrorResponse {
 //     pub failure: String,
 // }
-
+#[derive(Debug, Serialize, Deserialize)]
+struct User {
+    username: String,
+    password_hash: String,
+}
+#[derive(Clone)]
+struct AppState {
+    db: Surreal<Client>,
+}
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("0:?")]
@@ -181,34 +200,40 @@ pub async fn download_file(
 }
 
 async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
-    // get password :tm:
-    let username = env::var("AUTH_USERNAME").ok();
-    let password = env::var("AUTH_PASSWORD").ok();
-
-    // no password just dont care
-    if username.is_none() || password.is_none() {
-        return Ok(next.run(req).await);
-    }
-
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if auth_str.starts_with("Basic ") {
-                let credentials = auth_str.trim_start_matches("Basic ").trim();
-                if let Ok(decoded) = BASE64.decode(credentials) {
+                let credentials_b64 = auth_str.trim_start_matches("Basic ").trim();
+                if let Ok(decoded) = BASE64.decode(credentials_b64) {
                     if let Ok(decoded_str) = String::from_utf8(decoded) {
                         let parts: Vec<&str> = decoded_str.splitn(2, ':').collect();
-                        if parts.len() == 2
-                            && parts[0] == username.unwrap()
-                            && parts[1] == password.unwrap()
-                        {
-                            return Ok(next.run(req).await);
+                        if parts.len() == 2 {
+                            let username = parts[0];
+                            let password = parts[1];
+
+                            let user: Option<User> = DB_3
+                                .select(("user", username))
+                                .await
+                                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                            if let Some(user) = user {
+                                let parsed_hash = PasswordHash::new(&user.password_hash)
+                                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                                if Argon2::default()
+                                    .verify_password(password.as_bytes(), &parsed_hash)
+                                    .is_ok()
+                                {
+                                    return Ok(next.run(req).await);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-    // bro broke it :skull:
+
     let mut response = (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     response.headers_mut().insert(
         axum::http::header::WWW_AUTHENTICATE,
@@ -217,11 +242,145 @@ async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCo
     Ok(response)
 }
 
+pub async fn create_user(username: &str, password: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
+
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)?
+        .to_string();
+
+    let user = User {
+        username: username.to_string(),
+        password_hash,
+    };
+
+    let created: Option<User> = DB_3.create(("user", username)).content(user).await?;
+
+    Ok(())
+}
+
+async fn serve_index() -> Html<String> {
+    Html(std::fs::read_to_string("webui/index.html").unwrap())
+}
+
+async fn serve_users() -> Html<String> {
+    Html(std::fs::read_to_string("webui/users.html").unwrap())
+}
+
+async fn serve_games() -> Html<String> {
+    Html(std::fs::read_to_string("webui/games.html").unwrap())
+}
+
+async fn serve_js(HttpPath(file): HttpPath<String>) -> impl IntoResponse {
+    let content = std::fs::read_to_string(format!("webui/js/{}", file)).unwrap();
+    Response::builder()
+        .header("Content-Type", "application/javascript")
+        .body(content)
+        .unwrap()
+}
+
+#[derive(Deserialize)]
+struct CreateUserRequest {
+    username: String,
+    password: String,
+}
+
+async fn create_user_handler(
+    Json(payload): Json<CreateUserRequest>,
+) -> Result<StatusCode, StatusCode> {
+    match create_user(&payload.username, &payload.password).await {
+        Ok(_) => Ok(StatusCode::CREATED),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[derive(Serialize)]
+struct UserInfo {
+    username: String,
+}
+
+async fn list_users() -> Result<Json<Vec<UserInfo>>, StatusCode> {
+    let users: Vec<User> = DB_3
+        .select("user")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(
+        users
+            .into_iter()
+            .map(|u| UserInfo {
+                username: u.username,
+            })
+            .collect(),
+    ))
+}
+
+async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode, StatusCode> {
+    let _: Option<User> = DB_3
+        .delete(("user", username))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(list_files))
         .route("/api/get_game/{title_id}", get(download_file))
+        // web ui
+        .route("/admin", get(serve_index))
+        .route("/admin/users.html", get(serve_users))
+        .route("/admin/games.html", get(serve_games))
+        .route("/admin/js/{file}", get(serve_js))
+        // user things
+        .route("/api/users", get(list_users))
+        .route("/api/users", post(create_user_handler))
+        .route("/api/users/{username}", delete(delete_user))
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
         .layer(middleware::from_fn(basic_auth))
     // .layer(tower::ServiceBuilder::new().layer(HandleErrorLayer::new(handle_error)))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::init_database;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_user() {
+        init_database()
+            .await
+            .expect("Failed to initialize database");
+        let username = "testuser";
+        let password = "testpassword";
+
+        let result = create_user(username, password).await;
+        assert!(result.is_ok(), "Failed to create user: {:?}", result);
+
+        let user: Option<User> = DB_3
+            .select(("user", username))
+            .await
+            .expect("Failed to fetch user");
+
+        assert!(user.is_some(), "User was not found in database");
+
+        let user = user.unwrap();
+        assert_eq!(user.username, username);
+
+        let parsed_hash = PasswordHash::new(&user.password_hash).expect("Failed to parse hash");
+
+        let verification = Argon2::default().verify_password(password.as_bytes(), &parsed_hash);
+
+        assert!(verification.is_ok(), "Password verification failed");
+
+        // delete the user at the end
+        // let _: Option<User> = DB_3
+        //     .delete(("user", username))
+        //     .await
+        //     .expect("Failed to delete test user");
+    }
 }

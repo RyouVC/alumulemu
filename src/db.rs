@@ -36,11 +36,14 @@ impl NspMetadata {
         Ok(())
     }
 }
+
 pub static DB: LazyLock<Surreal<Any>> = LazyLock::new(Surreal::init);
 pub static DB_2: LazyLock<Surreal<Any>> = LazyLock::new(Surreal::init);
+pub static DB_3: LazyLock<Surreal<Any>> = LazyLock::new(Surreal::init);
 pub async fn init_database() -> surrealdb::Result<()> {
     DB.connect("rocksdb://./database").await?;
     DB_2.connect("rocksdb://./stored_database").await?;
+    DB_3.connect("rocksdb://./users_database").await?;
     //DB.connect("ws://localhost:8000").await?;
     // DB.signin(surrealdb::opt::auth::Root {
     //     username: "root",
@@ -49,6 +52,7 @@ pub async fn init_database() -> surrealdb::Result<()> {
     // .await?;
     DB.use_ns("tinfoil").use_db("games").await?;
     DB_2.use_ns("tinfoil").use_db("stored").await?;
+    DB_3.use_ns("alumulemu").use_db("users").await?;
     Ok(())
 }
 
