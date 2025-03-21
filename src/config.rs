@@ -1,5 +1,4 @@
 //! Config module for alumulemu
-use std::default;
 
 use clap::{Parser, ValueEnum};
 
@@ -35,12 +34,25 @@ pub struct DatabaseConfig {
 }
 
 #[derive(Parser, Debug, Clone)]
+pub struct BackendConfig {
+    /// Primary region for metadata to be pulled from
+    #[clap(env = "ALU_PRIMARY_REGION", default_value = "US")]
+    pub primary_region: String,
+
+    /// Primary language for metadata to be pulled from
+    #[clap(env = "ALU_SECONDARY_LANGUAGE", default_value = "en")]
+    pub primary_lang: String,
+}
+#[derive(Parser, Debug, Clone)]
 pub struct Config {
     #[clap(env = "ALU_HOST", default_value = "0.0.0.0:3000")]
     pub host: String,
 
     #[clap(flatten)]
     pub db_config: DatabaseConfig,
+
+    #[clap(flatten)]
+    pub backend_config: BackendConfig,
 }
 
 pub fn config() -> Config {

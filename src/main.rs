@@ -6,7 +6,6 @@ mod nst;
 mod router;
 mod titledb;
 
-use clap::Parser;
 use db::init_database;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -18,11 +17,12 @@ use std::io::Write;
 use titledb::TitleDBImport;
 
 async fn download_titledb(client: &Client, region: &str, language: &str) -> Result<(), String> {
+    tracing::info!("Pulling TitleDB data for {region}-{language}");
     let url = format!(
         "https://github.com/blawar/titledb/raw/refs/heads/master/{}.{}.json",
         region, language
     );
-    let path = format!("{}.{}.json", region, language);
+    let path = format!("{region}.{language}.json");
     let res = client
         .get(&url)
         .send()
@@ -52,6 +52,7 @@ async fn download_titledb(client: &Client, region: &str, language: &str) -> Resu
     }
 
     pb.finish_with_message(format!("Downloaded {} to {}", url, path_clone));
+    tracing::info!("Pulled TitleDB data for {region}-{language}");
     Ok(())
 }
 
@@ -81,8 +82,8 @@ async fn main() -> color_eyre::Result<()> {
     // run the TitleDB import in the background
     tokio::spawn(async {
         tracing::info!("Importing TitleDB...");
-        let region = std::env::var("REGION").unwrap_or("US".to_string());
-        let language = std::env::var("LANGUAGE").unwrap_or("en".to_string());
+        let region = config.backend_config.primary_region;
+        let language = config.backend_config.primary_lang;
         let client = Client::new();
         if !std::path::Path::new(&format!("{}.{}.json", region, language)).exists() {
             download_titledb(&client, &region, &language).await.unwrap();

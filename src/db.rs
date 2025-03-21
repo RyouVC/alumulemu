@@ -8,6 +8,8 @@ use surrealdb::{
     engine::any::{self, Any},
 };
 
+use crate::titledb::Title;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NspMetadata {
     pub path: String,
@@ -19,18 +21,21 @@ impl NspMetadata {
     pub async fn get_all() -> surrealdb::Result<Vec<Self>> {
         DB.select("nsp_metadata").await
     }
+    #[tracing::instrument(level = "debug")]
     pub async fn get_by_path(path: &str) -> surrealdb::Result<Option<Self>> {
         DB.select(("nsp_metadata", path)).await
     }
 
+    #[tracing::instrument(level = "debug")]
     pub async fn save(&self) -> surrealdb::Result<Option<NspMetadata>> {
         let created: Option<NspMetadata> = DB
-            .create(("nsp_metadata", &self.path))
+            .upsert(("nsp_metadata", &self.path))
             .content(self.clone())
             .await?;
         Ok(created)
     }
 
+    #[tracing::instrument(level = "debug")]
     pub async fn delete_cache() -> surrealdb::Result<()> {
         let _: Vec<NspMetadata> = DB.delete("nsp_metadata").await?;
         Ok(())

@@ -386,10 +386,12 @@ impl TitleDBImport {
         }
     }
 
+    #[tracing::instrument(skip(reader))]
     pub async fn from_json_reader_streaming<R: std::io::Read>(
         reader: R,
         db_sfx: &str,
     ) -> Result<(), serde_json::Error> {
+        tracing::info!("Importing TitleDB data for {db_sfx} (Streamed)");
         let mut db = Self::new();
         let mut reader = JsonStreamReader::new(reader);
 
@@ -416,6 +418,7 @@ impl TitleDBImport {
 
         reader.end_object().unwrap();
 
+        tracing::info!("Successfully imported TitleDB data for {db_sfx}");
         Ok(())
     }
 
