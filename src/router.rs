@@ -13,9 +13,7 @@ use axum::middleware::{self, Next};
 use axum::{
     BoxError, Json, Router,
     body::Body,
-    error_handling::{HandleError, HandleErrorLayer},
     extract::Path as HttpPath,
-    extract::State,
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::{delete, get, post},
@@ -23,13 +21,6 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::Request;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::env;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
-use surrealdb::Surreal;
-use surrealdb::engine::remote::ws::Client;
 use tokio_util::io::ReaderStream;
 // #[derive(Debug, serde::Serialize, serde::Deserialize)]
 // pub struct ErrorResponse {
@@ -40,16 +31,11 @@ struct User {
     username: String,
     password_hash: String,
 }
-#[derive(Clone)]
-struct AppState {
-    db: Surreal<Client>,
-}
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("0:?")]
     Error(#[from] color_eyre::Report),
-    #[error("Internal error: {0}")]
-    InternalError(#[from] BoxError),
 }
 
 impl IntoResponse for Error {
@@ -59,14 +45,6 @@ impl IntoResponse for Error {
         (status, body).into_response()
     }
 }
-
-// impl IntoResponse for ErrorResponse {
-//     fn into_response(self) -> Response {
-//         let status = StatusCode::INTERNAL_SERVER_ERROR;
-//         let body = Json(self);
-//         (status, body).into_response()
-//     }
-// }
 
 type AlumRes<T> = Result<T, Error>;
 #[tracing::instrument]
@@ -326,22 +304,36 @@ async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode,
     Ok(StatusCode::NO_CONTENT)
 }
 
+// Router for /admin endpoints
+pub fn admin_router() -> Router {
+    Router::new()
+        .route("/", get(serve_index))
+        .route("/users.html", get(serve_users))
+        .route("/games.html", get(serve_games))
+        .route("/js/{file}", get(serve_js))
+        .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+        .layer(middleware::from_fn(basic_auth))
+}
+
+pub fn api_router() -> Router {
+    Router::new()
+        .route("/users", get(list_users))
+        .route("/users", post(create_user_handler))
+        .route("/users/{username}", delete(delete_user))
+        .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+    // .layer(middleware::from_fn(basic_auth))
+}
+
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(list_files))
         .route("/api/get_game/{title_id}", get(download_file))
         // web ui
-        .route("/admin", get(serve_index))
-        .route("/admin/users.html", get(serve_users))
-        .route("/admin/games.html", get(serve_games))
-        .route("/admin/js/{file}", get(serve_js))
+        .nest("/admin", admin_router())
         // user things
-        .route("/api/users", get(list_users))
-        .route("/api/users", post(create_user_handler))
-        .route("/api/users/{username}", delete(delete_user))
+        .nest("/api", api_router())
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
-        .layer(middleware::from_fn(basic_auth))
-    // .layer(tower::ServiceBuilder::new().layer(HandleErrorLayer::new(handle_error)))
+    // .layer(middleware::from_fn(basic_auth))
 }
 
 #[cfg(test)]

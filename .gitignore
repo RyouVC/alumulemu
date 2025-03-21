@@ -10,3 +10,5 @@ languages.json
 nstool_output.txt
 stored_database/
 users_database/
+*.env*
+!.env.example
