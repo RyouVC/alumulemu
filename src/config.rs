@@ -42,6 +42,10 @@ pub struct BackendConfig {
     /// Primary language for metadata to be pulled from
     #[clap(env = "ALU_SECONDARY_LANGUAGE", default_value = "en")]
     pub primary_lang: String,
+
+    /// Directory to store games
+    #[clap(env = "ALU_ROM_DIR", default_value = "games/")]
+    pub rom_dir: String,
 }
 #[derive(Parser, Debug, Clone)]
 pub struct Config {

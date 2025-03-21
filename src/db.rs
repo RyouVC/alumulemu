@@ -8,8 +8,6 @@ use surrealdb::{
     engine::any::{self, Any},
 };
 
-use crate::titledb::Title;
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NspMetadata {
     pub path: String,

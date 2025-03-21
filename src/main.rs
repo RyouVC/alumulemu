@@ -57,7 +57,8 @@ async fn download_titledb(client: &Client, region: &str, language: &str) -> Resu
 }
 
 pub fn games_dir() -> String {
-    std::env::var("GAMES_DIR").unwrap_or("games/".to_string())
+    let config = config::config();
+    config.backend_config.rom_dir
 }
 
 #[tokio::main]
