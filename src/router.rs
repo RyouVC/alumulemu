@@ -1,5 +1,5 @@
 // use crate::db::scan_games_path;
-use crate::db::DB_3;
+use crate::db::DB;
 use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
@@ -211,7 +211,7 @@ async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCo
                             let username = parts[0];
                             let password = parts[1];
 
-                            let user: Option<User> = DB_3
+                            let user: Option<User> = DB
                                 .select(("user", username))
                                 .await
                                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -256,7 +256,7 @@ pub async fn create_user(username: &str, password: &str) -> Result<(), Box<dyn s
         password_hash,
     };
 
-    let created: Option<User> = DB_3.create(("user", username)).content(user).await?;
+    let created: Option<User> = DB.create(("user", username)).content(user).await?;
 
     Ok(())
 }
@@ -302,7 +302,7 @@ struct UserInfo {
 }
 
 async fn list_users() -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let users: Vec<User> = DB_3
+    let users: Vec<User> = DB
         .select("user")
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -318,7 +318,7 @@ async fn list_users() -> Result<Json<Vec<UserInfo>>, StatusCode> {
 }
 
 async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode, StatusCode> {
-    let _: Option<User> = DB_3
+    let _: Option<User> = DB
         .delete(("user", username))
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -361,7 +361,7 @@ mod tests {
         let result = create_user(username, password).await;
         assert!(result.is_ok(), "Failed to create user: {:?}", result);
 
-        let user: Option<User> = DB_3
+        let user: Option<User> = DB
             .select(("user", username))
             .await
             .expect("Failed to fetch user");
@@ -378,7 +378,7 @@ mod tests {
         assert!(verification.is_ok(), "Password verification failed");
 
         // delete the user at the end
-        // let _: Option<User> = DB_3
+        // let _: Option<User> = DB
         //     .delete(("user", username))
         //     .await
         //     .expect("Failed to delete test user");
