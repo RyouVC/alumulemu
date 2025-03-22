@@ -99,7 +99,6 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "axum",
- "axum-proxy",
  "base64 0.22.1",
  "binrw",
  "chrono",
@@ -111,7 +110,6 @@ dependencies = [
  "http",
  "indicatif",
  "jwalk",
- "mime_guess",
  "regex",
  "reqwest",
  "serde",
@@ -497,21 +495,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "axum-proxy"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfa701f8507e2173d61e9dec62b1f2c139beca6ca501392e2ab886a9d2630f95"
-dependencies = [
- "http",
- "http-body",
- "hyper",
- "hyper-util",
- "log",
- "regex",
- "tower-service",
 ]
 
 [[package]]
