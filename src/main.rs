@@ -1,3 +1,4 @@
+mod build;
 mod config;
 mod db;
 mod index;
@@ -6,6 +7,7 @@ mod nst;
 mod router;
 mod titledb;
 
+use build::build_frontend;
 use db::init_database;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -102,7 +104,8 @@ async fn main() -> color_eyre::Result<()> {
         .await;
         tracing::info!("TitleDB downloaded, Alumulemu running...")
     });
-
+    tracing::info!("Building frontend...");
+    build_frontend().await?;
     let app = create_router();
     let listener = tokio::net::TcpListener::bind(config.host).await.unwrap();
     tracing::info!("Listening on: {}", listener.local_addr().unwrap());
