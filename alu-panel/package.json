@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
   },
   "dependencies": {
+    "@rsbuild/core": "^1.2.19",
+    "@rsbuild/plugin-vue": "^1.0.7",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
