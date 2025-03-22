@@ -12,3 +12,4 @@ stored_database/
 users_database/
 *.env*
 !.env.example
+alu-panel/dist/

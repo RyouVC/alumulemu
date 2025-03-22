@@ -3,7 +3,8 @@ use crate::db::DB;
 use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
-use crate::nsp::get_title_id_from_nsp;
+use tower_http::services::ServeDir;
+
 use crate::titledb::GameFileDataNaive;
 use argon2::{
     Argon2,
@@ -307,11 +308,7 @@ async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode,
 // Router for /admin endpoints
 pub fn admin_router() -> Router {
     Router::new()
-        .route("/", get(serve_index))
-        .route("/users.html", get(serve_users))
-        .route("/games.html", get(serve_games))
-        .route("/js/{file}", get(serve_js))
-        .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+        .fallback_service(ServeDir::new("alu-panel/dist"))
         .layer(middleware::from_fn(basic_auth))
 }
 

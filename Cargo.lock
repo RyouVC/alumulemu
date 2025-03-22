@@ -99,6 +99,7 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "axum",
+ "axum-proxy",
  "base64 0.22.1",
  "binrw",
  "chrono",
@@ -110,6 +111,7 @@ dependencies = [
  "http",
  "indicatif",
  "jwalk",
+ "mime_guess",
  "regex",
  "reqwest",
  "serde",
@@ -495,6 +497,21 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-proxy"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfa701f8507e2173d61e9dec62b1f2c139beca6ca501392e2ab886a9d2630f95"
+dependencies = [
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-util",
+ "log",
+ "regex",
+ "tower-service",
 ]
 
 [[package]]
@@ -1901,6 +1918,12 @@ dependencies = [
  "http-body",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
 
 [[package]]
 name = "httparse"
@@ -4768,9 +4791,18 @@ checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
 dependencies = [
  "bitflags 2.9.0",
  "bytes",
+ "futures-util",
  "http",
  "http-body",
+ "http-body-util",
+ "http-range-header",
+ "httpdate",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
