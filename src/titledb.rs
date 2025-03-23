@@ -347,6 +347,24 @@ pub struct Title {
 }
 
 impl Title {
+    pub async fn count() -> Result<i64> {
+        #[derive(Debug, Deserialize)]
+        struct CountResult {
+            count: i64,
+        }
+
+        let query = format!(
+            "SELECT count() FROM titles_{} GROUP BY count",
+            crate::config::config().backend_config.get_locale_string()
+        );
+        let mut res = DB.query(query).await?;
+        tracing::trace!("Count query: {:?}", res);
+        let result: Option<CountResult> = res.take(0)?;
+        let count = result.map(|r| r.count).unwrap_or_default();
+        tracing::trace!("Title count: {:?}", count);
+        Ok(count)
+    }
+
     pub async fn get_from_title_id(lang: &str, title_id: &str) -> Result<Option<Self>> {
         // If the title ID ends with *800, it's an update for a game,
         // So we can replace it with 000 to get the base game

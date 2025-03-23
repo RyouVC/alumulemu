@@ -43,19 +43,36 @@ async fn import_titledb_background(config: config::Config) {
     } else {
         true
     };
+    // Check if the Title table is empty first
+    if titledb::Title::count().await.unwrap() == 0 {
+        // Force download if table is empty
+        let path = download_titledb(&client, &region, &language).await.unwrap();
+        let titledb_file = std::fs::File::open(&path).unwrap();
+        
+        let _ = TitleDBImport::from_json_reader_streaming(
+            titledb_file,
+            &format!("{region}_{language}"),
+        )
+        .await;
+        tracing::info!("TitleDB import complete!");
+        return;
+    }
 
-    let path = if should_download {
-        download_titledb(&client, &region, &language).await.unwrap()
-    } else {
+    // Only check recency if we already have data
+    if !should_download {
         tracing::info!("TitleDB .json is recent, skipping...");
         return;
-    };
+    }
 
+    // Update existing data
+    let path = download_titledb(&client, &region, &language).await.unwrap();
     let titledb_file = std::fs::File::open(&path).unwrap();
-
-    let _ = TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{language}"))
-        .await;
-    tracing::info!("TitleDB import complete!");
+    let _ = TitleDBImport::from_json_reader_streaming(
+        titledb_file,
+        &format!("{region}_{language}"),
+    )
+    .await;
+    tracing::info!("TitleDB update complete!");
 }
 
 async fn schedule_titledb_imports(config: config::Config) {
