@@ -1,7 +1,7 @@
 use crate::backend::user::basic_auth;
 use crate::backend::user::user_router;
-use crate::db::create_precomputed_metaview;
 use crate::db::NspMetadata;
+use crate::db::create_precomputed_metaview;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 
@@ -435,8 +435,10 @@ pub async fn download_file(
 
 // todo: create precomputed view for this
 #[tracing::instrument]
-pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> Result<impl IntoResponse, StatusCode> {
-    tracing::info!("Getting title metadata for {}", title_id_param);
+pub async fn title_meta(
+    HttpPath(title_id_param): HttpPath<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    tracing::trace!("Getting title metadata for {}", title_id_param);
     // // First check if we have this game in our metadata
     // let all_metadata = NspMetadata::get_all()
     //     .await
@@ -451,7 +453,25 @@ pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> Result<im
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
-    
+
+    Ok(Json(title).into_response())
+}
+
+#[tracing::instrument]
+pub async fn title_meta_base_game(
+    HttpPath(title_id_param): HttpPath<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    tracing::trace!("Getting base game metadata for {}", title_id_param);
+
+    // Replace the last 3 characters with 0s to get the base game title ID
+    let base_title_id = format!("{}000", &title_id_param[..13]);
+
+    // Then get the title info from metaview cache
+    let title = crate::titledb::Title::get_from_metaview_cache(&base_title_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
     Ok(Json(title).into_response())
 }
 
@@ -525,6 +545,7 @@ pub fn create_router() -> Router {
         .merge(static_router())
         .route("/api/get_game/{title_id}", get(download_file))
         .route("/api/title_meta/{title_id}", get(title_meta))
+        .route("/api/title_meta/{title_id}/base_game", get(title_meta_base_game))
         // web ui
         .nest("/admin", admin_router())
         // user things

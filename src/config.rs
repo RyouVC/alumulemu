@@ -54,6 +54,12 @@ pub struct BackendConfig {
         default_value = ""
     )]
     pub secondary_locales: Vec<String>,
+
+    #[clap(long, env = "ALU_PROD_KEYS", default_value = "~/.switch/prod.keys")]
+    pub prod_keys: String,
+
+    #[clap(long, env = "ALU_TITLE_KEYS", default_value = "~/.switch/title.keys")]
+    pub title_keys: String,
 }
 
 impl BackendConfig {

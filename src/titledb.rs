@@ -93,9 +93,12 @@ impl GameFileDataNaive {
                 return Ok(naive);
             } else {
                 tracing::debug!("Reading NSP file: {:?}", filename);
-                let cnmt_output = run_nstool(path.to_str().unwrap());
-                let cnmt = parse_cnmt_output(&cnmt_output);
-                let (title_id, version) = get_title_id_and_version(cnmt);
+                let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
+                let title_id = cnmt.get_title_id_string();
+                let version = cnmt.header.title_version.to_string();
+                // let cnmt_output = run_nstool(path.to_str().unwrap());
+                // let cnmt = parse_cnmt_output(&cnmt_output);
+                // let (title_id, version) = get_title_id_and_version(cnmt);
                 tracing::debug!("Title ID: {:?}", title_id);
                 tracing::debug!("Version: {:?}", version);
 
@@ -353,10 +356,7 @@ impl Title {
             count: i64,
         }
 
-        let query = format!(
-            "SELECT count() FROM titles_{} GROUP BY count",
-            locale
-        );
+        let query = format!("SELECT count() FROM titles_{} GROUP BY count", locale);
         let mut res = DB.query(query).await?;
         tracing::trace!("Count query: {:?}", res);
         let result: Option<CountResult> = res.take(0)?;

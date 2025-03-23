@@ -34,3 +34,5 @@ envy = "0.4.2"
 dotenvy = { version = "0.15.7", features = ["clap", "cli"] }
 mime_guess = "2.0.5"
 cron = { version = "0.15.0", features = ["serde"] }
+nx-archive = "0.1.0"
+once_cell = "1.21.1"
