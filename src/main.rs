@@ -189,9 +189,9 @@ async fn main() -> color_eyre::Result<()> {
     // create games directory
     if !std::path::Path::new(&games_dir()).exists() {
         std::fs::create_dir(games_dir()).unwrap();
-        println!("Directory '{}' does not exist, creating...", games_dir());
+        tracing::info!("Directory '{}' does not exist, creating...", games_dir());
     } else {
-        println!("Directory '{}' already exists, skipping...", games_dir());
+        tracing::info!("Directory '{}' already exists, skipping...", games_dir());
     }
 
     // initialize database

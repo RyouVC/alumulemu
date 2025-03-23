@@ -51,5 +51,5 @@ ENV ALU_TITLE_DB_CACHE_DIR="/var/cache/titledb"
 
 EXPOSE 3000
 
-CMD ["./target/release/alumulemu"]
+CMD ["/app/alumulemu"]
 

@@ -47,8 +47,6 @@ pub fn read_cnmts(path: &str) -> color_eyre::Result<Vec<Cnmt>> {
     } else {
         return Err(color_eyre::eyre::eyre!("Unsupported file extension"));
     };
-
-    println!("{:?}", cnmt.len());
     Ok(cnmt)
 }
 
