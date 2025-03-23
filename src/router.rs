@@ -463,11 +463,20 @@ pub async fn title_meta_base_game(
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::trace!("Getting base game metadata for {}", title_id_param);
 
-    // Replace the last 3 characters with 0s to get the base game title ID
-    let base_title_id = format!("{}000", &title_id_param[..13]);
+    // Get all metadata entries
+    let nsp_metadata = NspMetadata::get_all()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Then get the title info from metaview cache
-    let title = crate::titledb::Title::get_from_metaview_cache(&base_title_id)
+    // Find base game that matches first 12 chars and ends with 000
+    let base_game_id = &title_id_param[..12];
+    let base_metadata = nsp_metadata
+        .iter()
+        .find(|m| m.title_id.starts_with(base_game_id) && m.title_id.ends_with("000"))
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Get full title info from cache using the found base game ID
+    let title = crate::titledb::Title::get_from_metaview_cache(&base_metadata.title_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
@@ -475,6 +484,82 @@ pub async fn title_meta_base_game(
     Ok(Json(title).into_response())
 }
 
+#[derive(serde::Serialize, Debug)]
+pub struct GroupedGameListResponse {
+    pub base_game: crate::titledb::Title,
+    pub versions: Vec<crate::titledb::Title>,
+}
+
+/// Enter in the base title ID of the game (or the first 13 characters of the title ID) to get all versions of the game
+/// This is useful for games that have multiple versions, like updates or DLCs
+#[tracing::instrument]
+pub async fn list_grouped_by_titleid(
+    HttpPath(title_id_param): HttpPath<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    // tracing::debug!("Getting grouped game list for {}", title_id_param);
+    // if title_id_param.len() < 13 {
+    //     return Err(StatusCode::BAD_REQUEST);
+    // }
+    // tracing::debug!("Getting title metadata for {}", title_id_param);
+
+    let nsp_metadata = NspMetadata::get_all()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let base_game_id = title_id_param[..12].to_string();
+    // tracing::debug!("Base game ID: {}", base_game_id);
+    // First try to find the base game in our local metadata
+    let base_game_metadata = nsp_metadata
+        .iter()
+        .find(|m| m.title_id.starts_with(&base_game_id[..12]) && m.title_id.ends_with("000"))
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Then get the full title info from cache
+    let base_game = crate::titledb::Title::get_from_metaview_cache(&base_game_metadata.title_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let mut versions = Vec::new();
+    for metadata in nsp_metadata
+        .iter()
+        .filter(|m| m.title_id.starts_with(&base_game_id[..12]))
+    {
+        if !metadata.title_id.ends_with("000") {
+            if let Ok(Some(title)) =
+                crate::titledb::Title::get_from_metaview_cache(&metadata.title_id).await
+            {
+                versions.push(title);
+            }
+        }
+    }
+
+    let response = GroupedGameListResponse {
+        base_game,
+        versions,
+    };
+
+    Ok(Json(response).into_response())
+}
+
+/// List base games only (games that end with 000)
+#[tracing::instrument]
+pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
+    let nsp_metadata = NspMetadata::get_all()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut base_games = Vec::new();
+    for metadata in nsp_metadata.iter().filter(|m| m.title_id.ends_with("000")) {
+        if let Ok(Some(title)) =
+            crate::titledb::Title::get_from_metaview_cache(&metadata.title_id).await
+        {
+            base_games.push(title);
+        }
+    }
+
+    Ok(Json(base_games).into_response())
+}
 pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
     tracing::info!("Rescanning games directory");
     update_metadata_from_filesystem(&games_dir()).await?;
@@ -545,7 +630,12 @@ pub fn create_router() -> Router {
         .merge(static_router())
         .route("/api/get_game/{title_id}", get(download_file))
         .route("/api/title_meta/{title_id}", get(title_meta))
-        .route("/api/title_meta/{title_id}/base_game", get(title_meta_base_game))
+        .route(
+            "/api/title_meta/{title_id}/base_game",
+            get(title_meta_base_game),
+        )
+        .route("/api/grouped/{title_id}", get(list_grouped_by_titleid))
+        .route("/api/base_games", get(list_base_games))
         // web ui
         .nest("/admin", admin_router())
         // user things
