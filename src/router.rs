@@ -41,86 +41,152 @@ type AlumRes<T> = Result<T, Error>;
 pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Result<()> {
     tracing::info!("Starting full metadata rescan of {}", path);
 
-    // Get all existing metadata
-    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+    // Get all existing metadata and wrap in Arc for thread-safe sharing
+    let all_metadata =
+        std::sync::Arc::new(NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new()));
+
+    // Create a lookup map for faster metadata lookups
+    let metadata_map: std::collections::HashMap<String, &NspMetadata> =
+        all_metadata.iter().map(|m| (m.path.clone(), m)).collect();
+
+    // Define valid extensions once
+    const VALID_EXTENSIONS: [&str; 5] = ["nsp", "xci", "nsz", "ncz", "xcz"];
 
     // Track which files we've seen during this scan
     let mut found_paths = std::collections::HashSet::new();
 
-    // Walk the directory and process each file
-    let walker = jwalk::WalkDir::new(path);
-    let paths = walker.into_iter();
+    // Prepare batches for DB operations
+    let mut metadata_to_save = Vec::with_capacity(100);
 
-    // First pass: scan filesystem and add/update metadata
-    for entry in paths {
+    // Walk the directory and process each file
+    let walker = jwalk::WalkDir::new(path)
+        .skip_hidden(true)
+        .process_read_dir(move |_, _, _, dir_entry_results| {
+            // Sort entry results to process largest files first (optimization for typical use cases)
+            dir_entry_results.sort_by_cached_key(|entry_result| {
+                if let Ok(entry) = entry_result {
+                    let metadata = entry.metadata();
+                    if let Ok(metadata) = metadata {
+                        return std::cmp::Reverse(metadata.len());
+                    }
+                }
+                std::cmp::Reverse(0)
+            });
+        });
+
+    // Process files in parallel with bounded concurrency
+    let mut tasks = Vec::new();
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(8)); // Limit to 8 concurrent operations
+
+    for entry in walker.into_iter() {
         let path = entry.map_err(|e| Error::Error(color_eyre::eyre::eyre!(e.to_string())))?;
         let file_path = path.path();
-        let file_path_str = file_path.to_string_lossy().to_string();
-        let filename = path.file_name().to_string_lossy().into_owned();
 
-        // Only process supported game files
-        if !filename.ends_with(".nsp")
-            && !filename.ends_with(".xci")
-            && !filename.ends_with(".nsz")
-            && !filename.ends_with(".ncz")
-            && !filename.ends_with(".xcz")
-        {
+        // Extract extension early for filtering
+        if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+            if !VALID_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                continue;
+            }
+        } else {
             continue;
         }
 
-        // Add this path to our found set
+        let file_path_str = file_path.to_string_lossy().to_string();
         found_paths.insert(file_path_str.clone());
 
-        // Process file and update/add metadata
-        // Always process the file - no caching
-        tracing::debug!("Processing file: {}", file_path_str);
+        // Check if we already have metadata that's recent enough (could add timestamp checks here)
+        let needs_update = !metadata_map.contains_key(&file_path_str);
 
-        let game_data = match GameFileDataNaive::get(&file_path, &all_metadata).await {
-            Ok(data) => data,
-            Err(e) => {
-                tracing::warn!("Failed to get game data for {}: {}", file_path_str, e);
-                continue;
+        if needs_update {
+            let all_metadata_clone = all_metadata.clone();
+            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let task = tokio::spawn(async move {
+                let _permit = permit; // Keep permit alive for the duration of this task
+
+                tracing::debug!("Processing file: {}", file_path_str);
+                match GameFileDataNaive::get(&file_path, &all_metadata_clone).await {
+                    Ok(game_data) => {
+                        let title_id = game_data
+                            .title_id
+                            .unwrap_or_else(|| "00000000AAAA0000".to_string());
+
+                        // Get the title name from metadata or filename
+                        let title_name = all_metadata_clone
+                            .iter()
+                            .find(|m| m.path == file_path_str)
+                            .and_then(|m| m.title_name.clone())
+                            .unwrap_or_else(|| {
+                                game_data.name.trim().trim_end_matches(".nsp").to_string()
+                            });
+
+                        Some(NspMetadata {
+                            path: file_path_str,
+                            title_id,
+                            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
+                            title_name: Some(title_name),
+                        })
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to get game data: {}", e);
+                        None
+                    }
+                }
+            });
+            tasks.push(task);
+
+            // Process in batches to avoid using too much memory
+            if tasks.len() >= 20 {
+                metadata_to_save.extend(
+                    (futures::future::join_all(tasks).await)
+                        .into_iter()
+                        .flatten()
+                        .flatten(),
+                );
+                tasks = Vec::new();
+
+                // Save batch to DB
+                if !metadata_to_save.is_empty() {
+                    for metadata in metadata_to_save.drain(..) {
+                        if let Err(e) = metadata.save().await {
+                            tracing::warn!("Failed to save metadata: {}", e);
+                        }
+                    }
+                }
             }
-        };
-
-        let title_id = game_data
-            .title_id
-            .clone()
-            .unwrap_or_else(|| "00000000AAAA0000".to_string());
-
-        // Get the title name from metadata if available
-        let title_name = all_metadata
-            .iter()
-            .find(|m| m.path == file_path_str)
-            .and_then(|m| m.title_name.clone())
-            .unwrap_or_else(|| game_data.name.trim().trim_end_matches(".nsp").to_string());
-
-        let metadata = NspMetadata {
-            path: file_path_str.clone(),
-            title_id: title_id.clone(),
-            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
-            title_name: Some(title_name),
-        };
-
-        if let Err(e) = metadata.save().await {
-            tracing::warn!("Failed to save metadata for {}: {}", file_path_str, e);
-        } else {
-            tracing::debug!("Saved metadata for {}", file_path_str);
         }
     }
 
-    // Second pass: delete metadata for files that no longer exist
-    let mut deleted_count = 0;
-    for metadata in all_metadata {
-        if !found_paths.contains(&metadata.path) {
+    // Process remaining tasks
+    // Process remaining tasks and save their results directly
+    if !tasks.is_empty() {
+        for metadata in (futures::future::join_all(tasks).await)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            if let Err(e) = metadata.save().await {
+                tracing::warn!("Failed to save metadata: {}", e);
+            }
+        }
+    }
+
+    // Delete metadata for files that no longer exist
+    let delete_futures: Vec<_> = all_metadata
+        .iter()
+        .filter(|metadata| !found_paths.contains(&metadata.path))
+        .map(|metadata| async move {
             tracing::info!("Removing metadata for non-existent file: {}", metadata.path);
             if let Err(e) = metadata.delete().await {
                 tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
+                0
             } else {
-                deleted_count += 1;
+                1
             }
-        }
-    }
+        })
+        .collect();
+
+    let deleted_results = futures::future::join_all(delete_futures).await;
+    let deleted_count: usize = deleted_results.iter().sum();
 
     tracing::info!(
         "Metadata rescan complete. Found {} files, removed {} stale entries.",
@@ -129,6 +195,144 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
     );
 
     Ok(())
+}
+
+#[tracing::instrument]
+pub async fn watch_filesystem_for_changes(path: &str) -> color_eyre::eyre::Result<()> {
+    use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
+    // use std::path::PathBuf;
+    // use std::sync::Arc;
+    use tokio::sync::mpsc;
+
+    tracing::info!("Starting filesystem watcher for: {}", path);
+
+    // Define valid extensions once
+    // const VALID_EXTENSIONS: [&str; 5] = ["nsp", "xci", "nsz", "ncz", "xcz"];
+
+    // Create a channel to receive events
+    let (tx, mut rx) = mpsc::channel(100);
+
+    // Create a watcher with immediate events
+    let mut watcher = RecommendedWatcher::new(
+        move |res: Result<Event, notify::Error>| {
+            if let Ok(event) = res {
+                let _ = tx.blocking_send(event); // Send events to our channel
+            }
+        },
+        Config::default(),
+    )?;
+
+    // Start watching the specified directory recursively
+    watcher.watch(path.as_ref(), RecursiveMode::Recursive)?;
+
+    // Clone path for use in async move block
+    let path_owned = path.to_owned();
+
+    // Process events in a background task
+    tokio::spawn(async move {
+        process_fs_events(&mut rx, &path_owned).await;
+    });
+
+    // Keep the watcher alive
+    std::mem::forget(watcher);
+
+    Ok(())
+}
+
+async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, _path: &str) {
+    use notify::EventKind;
+
+    // Define valid extensions
+    const VALID_EXTENSIONS: [&str; 5] = ["nsp", "xci", "nsz", "ncz", "xcz"];
+
+    while let Some(event) = rx.recv().await {
+        // Get the path from the event
+        let event_path = match event.paths.first() {
+            Some(path) => path,
+            None => continue,
+        };
+
+        // Check if the file has a valid extension
+        if let Some(ext) = event_path.extension().and_then(|e| e.to_str()) {
+            if !VALID_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                continue;
+            }
+        } else {
+            continue;
+        }
+
+        let path_str = event_path.to_string_lossy().to_string();
+
+        match event.kind {
+            EventKind::Create(_) | EventKind::Modify(_) => {
+                tracing::info!("File created/modified: {}", path_str);
+
+                // Get all existing metadata
+                let all_metadata = std::sync::Arc::new(
+                    NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new()),
+                );
+
+                // Process the new/modified file
+                match GameFileDataNaive::get(event_path, &all_metadata).await {
+                    Ok(game_data) => {
+                        let title_id = game_data
+                            .title_id
+                            .unwrap_or_else(|| "00000000AAAA0000".to_string());
+
+                        // Get the title name
+                        let title_name = all_metadata
+                            .iter()
+                            .find(|m| m.path == path_str)
+                            .and_then(|m| m.title_name.clone())
+                            .unwrap_or_else(|| {
+                                game_data.name.trim().trim_end_matches(".nsp").to_string()
+                            });
+
+                        // Save the metadata
+                        let metadata = NspMetadata {
+                            path: path_str,
+                            title_id,
+                            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
+                            title_name: Some(title_name),
+                        };
+
+                        if let Err(e) = metadata.save().await {
+                            tracing::error!("Failed to save metadata: {}", e);
+                        } else {
+                            // Update the precomputed metaview if needed
+                            if let Err(e) = create_precomputed_metaview().await {
+                                tracing::warn!(
+                                    "Failed to update metaview after file change: {}",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to get game data for {}: {}", path_str, e);
+                    }
+                }
+            }
+            EventKind::Remove(_) => {
+                tracing::info!("File removed: {}", path_str);
+
+                // Find and delete the metadata for this file
+                let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+
+                if let Some(metadata) = all_metadata.iter().find(|m| m.path == path_str) {
+                    if let Err(e) = metadata.delete().await {
+                        tracing::error!("Failed to delete metadata for {}: {}", path_str, e);
+                    } else {
+                        // Update the precomputed metaview if needed
+                        if let Err(e) = create_precomputed_metaview().await {
+                            tracing::warn!("Failed to update metaview after file removal: {}", e);
+                        }
+                    }
+                }
+            }
+            _ => {} // Ignore other event types
+        }
+    }
 }
 
 #[tracing::instrument]

@@ -11,7 +11,7 @@ mod util;
 use cron::Schedule;
 use db::{create_precomputed_metaview, init_database};
 use reqwest::Client;
-use router::create_router;
+use router::{create_router, watch_filesystem_for_changes};
 use std::str::FromStr;
 use std::time::Duration;
 use titledb::TitleDBImport;
@@ -21,6 +21,12 @@ pub fn games_dir() -> String {
     let config = config::config();
     tracing::debug!("Games directory: {}", config.backend_config.rom_dir);
     config.backend_config.rom_dir
+}
+
+pub async fn romdir_inotify() {
+    if let Err(e) = watch_filesystem_for_changes(&games_dir()).await {
+        tracing::error!("Failed to start filesystem watcher: {}", e);
+    }
 }
 
 fn parse_secondary_locale_string(locale: &str) -> (String, String) {
@@ -167,6 +173,9 @@ async fn main() -> color_eyre::Result<()> {
         // Then schedule recurring imports
         schedule_titledb_imports(config_clone).await;
     });
+
+    // Start the inotify watcher
+    romdir_inotify().await;
 
     tracing::info!("Building frontend...");
     let app = create_router();
