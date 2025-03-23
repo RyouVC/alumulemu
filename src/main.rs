@@ -6,6 +6,7 @@ mod nst;
 mod router;
 mod titledb;
 mod util;
+mod backend;
 
 use db::init_database;
 
