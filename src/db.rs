@@ -3,10 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use std::sync::LazyLock;
 
-use surrealdb::{
-    Surreal,
-    engine::any::{self, Any},
-};
+use surrealdb::{Surreal, engine::any::Any};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NspMetadata {

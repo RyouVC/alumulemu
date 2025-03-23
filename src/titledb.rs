@@ -1,5 +1,5 @@
 use crate::nst::{get_title_id_and_version, parse_cnmt_output, run_nstool};
-use crate::{db::DB, db::NspMetadata, nsp::NspData};
+use crate::{db::DB, db::NspMetadata};
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -344,7 +344,7 @@ impl Title {
         let query =
             format!("SELECT * FROM titles_{lang} WHERE titleId = $tid OR ids CONTAINS $tid");
         let mut query = DB.query(&query).bind(("tid", title_id)).await?;
-        let mut data: Option<Self> = query.take(0)?;
+        let data: Option<Self> = query.take(0)?;
 
         // modify the title id
 

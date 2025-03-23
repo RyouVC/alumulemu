@@ -119,8 +119,6 @@ pub fn get_title_id_and_version(cnmt: ContentMeta) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Read;
 
     #[test]
     fn test_parse_cnmt_output() {
