@@ -40,17 +40,34 @@ pub struct BackendConfig {
     pub primary_region: String,
 
     /// Primary language for metadata to be pulled from
-    #[clap(env = "ALU_SECONDARY_LANGUAGE", default_value = "en")]
+    #[clap(env = "ALU_PRIMARY_LANGUAGE", default_value = "en")]
     pub primary_lang: String,
 
     /// Directory to store games
     #[clap(env = "ALU_ROM_DIR", default_value = "games/")]
     pub rom_dir: String,
+
+    /// Secondary locales for metadata fallback
+    #[clap(
+        env = "ALU_SECONDARY_LOCALES",
+        value_delimiter = ',',
+        default_value = ""
+    )]
+    pub secondary_locales: Vec<String>,
 }
 
 impl BackendConfig {
     pub fn get_locale_string(&self) -> String {
         format!("{}_{}", self.primary_region, self.primary_lang)
+    }
+
+    /// Get valid secondary locales (filters out empty strings)
+    pub fn get_valid_secondary_locales(&self) -> Vec<String> {
+        self.secondary_locales
+            .iter()
+            .filter(|s| !s.is_empty())
+            .cloned()
+            .collect()
     }
 }
 

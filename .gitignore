@@ -2,6 +2,7 @@ target/
 games/
 database/
 .vscode/
+/*.json
 US.en.json
 *.nsp
 *.xci

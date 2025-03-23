@@ -347,7 +347,7 @@ pub struct Title {
 }
 
 impl Title {
-    pub async fn count() -> Result<i64> {
+    pub async fn count(locale: &str) -> Result<i64> {
         #[derive(Debug, Deserialize)]
         struct CountResult {
             count: i64,
@@ -355,7 +355,7 @@ impl Title {
 
         let query = format!(
             "SELECT count() FROM titles_{} GROUP BY count",
-            crate::config::config().backend_config.get_locale_string()
+            locale
         );
         let mut res = DB.query(query).await?;
         tracing::trace!("Count query: {:?}", res);
@@ -365,7 +365,7 @@ impl Title {
         Ok(count)
     }
 
-    pub async fn get_from_title_id(lang: &str, title_id: &str) -> Result<Option<Self>> {
+    pub async fn get_from_title_id(locale: &str, title_id: &str) -> Result<Option<Self>> {
         // If the title ID ends with *800, it's an update for a game,
         // So we can replace it with 000 to get the base game
         let is_update = title_id.ends_with("800");
@@ -378,7 +378,7 @@ impl Title {
         };
 
         let query =
-            format!("SELECT * FROM titles_{lang} WHERE titleId = $tid OR ids CONTAINS $tid");
+            format!("SELECT * FROM titles_{locale} WHERE titleId = $tid OR ids CONTAINS $tid");
         let mut query = DB
             .query(query)
             // .bind(("table", format!("titles_{lang}")))

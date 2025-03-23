@@ -95,16 +95,28 @@ pub async fn init_database() -> surrealdb::Result<()> {
     let user_schema = include_str!("surql/user.surql");
     DB.query(user_schema).await?;
 
-    create_precomputed_metaview().await?;
-
     tracing::info!("Database initialization complete");
     Ok(())
 }
 
-async fn create_precomputed_metaview() -> surrealdb::Result<()> {
-    let locale = crate::config::config().backend_config.get_locale_string();
-    let metaview_schema = include_str!("surql/metadb_view.surql").replace("%LOCALE%", &locale);
-    DB.query(metaview_schema).await?;
+pub async fn create_precomputed_metaview() -> surrealdb::Result<()> {
+    let config = crate::config::config();
+    let base_schema = include_str!("surql/metadb_view.surql");
+
+    // Primary locale
+    tracing::info!("Creating metaview schema for primary locale");
+    let locale = config.backend_config.get_locale_string();
+    let metaview_schema_main = base_schema.replace("%LOCALE%", &locale);
+    DB.query(metaview_schema_main).await?;
+
+
+    // Secondary locales
+    for locale in config.backend_config.get_valid_secondary_locales() {
+        tracing::info!("Creating metaview schema for secondary locale {}", locale);
+        let metaview_schema = base_schema.replace("%LOCALE%", &locale);
+        DB.query(metaview_schema).await?;
+    }
+
     Ok(())
 }
 

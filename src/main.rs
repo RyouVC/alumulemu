@@ -9,7 +9,7 @@ mod titledb;
 mod util;
 
 use cron::Schedule;
-use db::init_database;
+use db::{create_precomputed_metaview, init_database};
 use reqwest::Client;
 use router::create_router;
 use std::str::FromStr;
@@ -22,16 +22,18 @@ pub fn games_dir() -> String {
     config.backend_config.rom_dir
 }
 
-async fn import_titledb_background(config: config::Config) {
-    let span = tracing::info_span!("titledb_import");
-    let _enter = span.enter();
+fn parse_secondary_locale_string(locale: &str) -> (String, String) {
+    let parts: Vec<&str> = locale.split('_').collect();
+    if parts.len() == 2 {
+        (parts[0].to_uppercase(), parts[1].to_lowercase())
+    } else {
+        panic!("Invalid locale string: {}", locale);
+    }
+}
 
-    tracing::info!("Importing TitleDB...");
-    let region = config.backend_config.primary_region;
-    let language = config.backend_config.primary_lang;
+async fn import_titledb(lang: &str, region: &str) {
     let client = Client::new();
-
-    let path = format!("{}.{}.json", region, language);
+    let path = format!("{}.{}.json", region, lang);
 
     let should_download = if let Ok(metadata) = std::fs::metadata(&path) {
         if let Ok(modified) = metadata.modified() {
@@ -43,18 +45,21 @@ async fn import_titledb_background(config: config::Config) {
     } else {
         true
     };
+
     // Check if the Title table is empty first
-    if titledb::Title::count().await.unwrap() == 0 {
+    if titledb::Title::count(&format!("{region}_{lang}"))
+        .await
+        .unwrap()
+        == 0
+    {
         // Force download if table is empty
-        let path = download_titledb(&client, &region, &language).await.unwrap();
+        let path = download_titledb(&client, region, lang).await.unwrap();
         let titledb_file = std::fs::File::open(&path).unwrap();
-        
-        let _ = TitleDBImport::from_json_reader_streaming(
-            titledb_file,
-            &format!("{region}_{language}"),
-        )
-        .await;
-        tracing::info!("TitleDB import complete!");
+
+        let _ =
+            TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
+                .await;
+        tracing::info!("TitleDB import complete for {region}_{lang}");
         return;
     }
 
@@ -65,14 +70,34 @@ async fn import_titledb_background(config: config::Config) {
     }
 
     // Update existing data
-    let path = download_titledb(&client, &region, &language).await.unwrap();
+    let path = download_titledb(&client, region, lang).await.unwrap();
     let titledb_file = std::fs::File::open(&path).unwrap();
-    let _ = TitleDBImport::from_json_reader_streaming(
-        titledb_file,
-        &format!("{region}_{language}"),
+    let _ =
+        TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}")).await;
+    tracing::info!("TitleDB update complete!");
+}
+
+async fn import_titledb_background(config: config::Config) {
+    let span = tracing::info_span!("titledb_import");
+    let _enter = span.enter();
+
+    import_titledb(
+        &config.backend_config.primary_lang,
+        &config.backend_config.primary_region,
     )
     .await;
-    tracing::info!("TitleDB update complete!");
+
+    tracing::info!("TitleDB import complete for primary locale");
+
+    for locale in config.backend_config.get_valid_secondary_locales() {
+        let (region, lang) = parse_secondary_locale_string(&locale);
+        import_titledb(&lang, &region).await;
+    }
+
+    tracing::info!("TitleDB import complete for all locales");
+
+    create_precomputed_metaview().await.unwrap();
+    tracing::info!("Precomputed metaviews created");
 }
 
 async fn schedule_titledb_imports(config: config::Config) {
