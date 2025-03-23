@@ -24,7 +24,7 @@ use tokio_util::io::ReaderStream;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("0:?")]
+    #[error("{0:?}")]
     Error(#[from] color_eyre::Report),
 }
 
