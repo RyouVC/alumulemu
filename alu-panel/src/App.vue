@@ -1,37 +1,34 @@
 <template>
-    <div id="app">
-        <nav>
-            <RouterLink to="/games">Games</RouterLink> |
-            <RouterLink to="/users">Users</RouterLink>
+    <div class="p-5">
+        <nav class="fixed top-0 left-0 right-0 z-50 p-4 bg-gray-800 mb-5">
+            <div class="flex items-center">
+                <h1
+                    class="font-bold text-white no-underline mx-2.5 router-link-active:text-green-500"
+                >
+                    Alumulemu Admin Panel |
+                </h1>
+
+                <RouterLink
+                    to="/games"
+                    class="font-bold text-gray-800 no-underline mx-2.5 router-link-active:text-green-500"
+                    >Games</RouterLink
+                >
+
+                <RouterLink
+                    to="/users"
+                    class="font-bold text-gray-800 no-underline mx-2.5 router-link-active:text-green-500"
+                    >Users</RouterLink
+                >
+            </div>
         </nav>
 
-        <RouterView />
+        <div class="mt-16">
+            <RouterView />
+        </div>
     </div>
 </template>
 
 <script setup>
+import { h } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 </script>
-
-<style>
-#app {
-    padding: 20px;
-}
-
-nav {
-    padding: 1rem;
-    background: #f5f5f5;
-    margin-bottom: 20px;
-}
-
-nav a {
-    font-weight: bold;
-    color: #2c3e50;
-    text-decoration: none;
-    margin: 0 10px;
-}
-
-nav a.router-link-active {
-    color: #42b983;
-}
-</style>

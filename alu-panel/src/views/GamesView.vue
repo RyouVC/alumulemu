@@ -1,6 +1,6 @@
 <template>
     <div class="games">
-        <h1>Games</h1>
+        <!-- <h1>Games</h1> -->
         <GamesList />
     </div>
 </template>
