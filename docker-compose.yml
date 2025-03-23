@@ -1,6 +1,6 @@
 services:
   alumulemu:
-    image: ghcr.io/ryouvc/alumulemu:latest
+    image: ghcr.io/ryouvc/alumulemu:main
     build:
       context: .
       dockerfile: Dockerfile
