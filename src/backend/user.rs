@@ -154,9 +154,7 @@ pub async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusC
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Update the middleware function signature to match what Axum expects
 pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
-    // If there are no users, bypass authentication and add a warning header
     let users: Vec<User> = match DB.select("user").await {
         Ok(users) => users,
         Err(e) => {
@@ -179,41 +177,49 @@ pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, Stat
         return Ok(response);
     }
 
-    // Retrieve the Authorization header.
-    let auth_header = req
+    let auth_header = match req
         .headers()
         .get("Authorization")
-        .and_then(|val| val.to_str().ok());
+        .and_then(|val| val.to_str().ok())
+    {
+        Some(header) => header,
+        None => return unauthorized_response(),
+    };
 
-    if let Some(auth_str) = auth_header {
-        if auth_str.starts_with("Basic ") {
-            // Decode the base64-encoded credentials.
-            let credentials_b64 = auth_str.trim_start_matches("Basic ").trim();
-            if let Ok(decoded) = BASE64.decode(credentials_b64) {
-                if let Ok(decoded_str) = String::from_utf8(decoded) {
-                    let mut parts = decoded_str.splitn(2, ':');
-                    let username = parts.next();
-                    let password = parts.next();
-
-                    if let (Some(username), Some(password)) = (username, password) {
-                        // Try to authenticate using our login function
-                        match User::login_user(username, password).await {
-                            Ok(_) => return Ok(next.run(req).await),
-                            Err(e) => {
-                                tracing::error!(
-                                    "Authentication failed for user {}: {}",
-                                    username,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    if !auth_header.starts_with("Basic ") {
+        return unauthorized_response();
     }
 
-    // Authentication failed, return unauthorized
+    let credentials_b64 = auth_header.trim_start_matches("Basic ").trim();
+    let decoded = match BASE64.decode(credentials_b64) {
+        Ok(decoded) => decoded,
+        Err(_) => return unauthorized_response(),
+    };
+
+    let decoded_str = match String::from_utf8(decoded) {
+        Ok(str) => str,
+        Err(_) => return unauthorized_response(),
+    };
+
+    let mut parts = decoded_str.splitn(2, ':');
+    let username = parts.next();
+    let password = parts.next();
+
+    let (username, password) = match (username, password) {
+        (Some(u), Some(p)) => (u, p),
+        _ => return unauthorized_response(),
+    };
+
+    match User::login_user(username, password).await {
+        Ok(_) => Ok(next.run(req).await),
+        Err(e) => {
+            tracing::error!("Authentication failed for user {}: {}", username, e);
+            unauthorized_response()
+        }
+    }
+}
+
+fn unauthorized_response() -> Result<Response, StatusCode> {
     let mut response = (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     response.headers_mut().insert(
         axum::http::header::WWW_AUTHENTICATE,
