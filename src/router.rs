@@ -5,6 +5,7 @@ use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
+use crate::util::format_game_name;
 use axum::middleware::{self};
 use axum::{
     BoxError, Json, Router,
@@ -127,23 +128,6 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
     );
 
     Ok(())
-}
-
-async fn handle_error(error: BoxError) -> impl IntoResponse {
-    let response = TinfoilResponse::Failure(format!("Server error: {}", error));
-    Json(response)
-}
-
-/// Formats a game name for display with title ID and version information
-fn format_game_name(metadata: &NspMetadata, filename: &str, extension: &str) -> String {
-    let name = match &metadata.title_name {
-        Some(n) => n.clone(),
-        None => filename.trim().trim_end_matches(extension).to_string(),
-    };
-    format!(
-        "{} [{}][{}].{}",
-        name, metadata.title_id, metadata.version, extension
-    )
 }
 
 #[tracing::instrument]
@@ -352,7 +336,7 @@ pub async fn download_file(
                 })
                 .collect();
 
-            if (!nsp_metadata.is_empty()) {
+            if !nsp_metadata.is_empty() {
                 // We have NSP files - get the latest version
                 nsp_metadata
                     .iter()
@@ -454,7 +438,8 @@ pub fn admin_router() -> Router {
                 Err(_) => StatusCode::NOT_FOUND.into_response(),
             }
         })
-        .layer(middleware::from_fn(basic_auth))
+        // Fix the middleware layering by using proper syntax
+        .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
 }
 
 // todo: use mime_types crate

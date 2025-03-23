@@ -92,6 +92,10 @@ pub async fn init_database() -> surrealdb::Result<()> {
         .use_db(config.db_config.db_database)
         .await?;
 
+
+    let user_schema = include_str!("surql/user.surql");
+    DB.query(user_schema).await?;
+
     tracing::info!("Database initialization complete");
     Ok(())
 }

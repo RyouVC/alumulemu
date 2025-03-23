@@ -10,32 +10,101 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
+use surrealdb::opt::auth::Record;
 
 use crate::{db::DB, index::TinfoilResponse};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct User {
     pub username: String,
-    password_hash: String,
+    pub password: String,
+    #[serde(default)]
+    pub scopes: Option<Vec<String>>,
+}
+
+impl User {
+    #[tracing::instrument(skip(password))]
+    pub async fn create(username: &str, password: &str) -> color_eyre::Result<Self> {
+        // First, ensure user doesn't already exist
+        let existing: Option<User> = DB
+            .query("SELECT * FROM user WHERE username = $username")
+            .bind(("username", username.to_string()))
+            .await?
+            .take(0)?;
+
+        if existing.is_some() {
+            return Err(color_eyre::eyre::eyre!("User already exists"));
+        }
+
+        let mut req = DB
+            .query(
+                "CREATE user SET
+        username = $username, password = crypto::argon2::generate($password), scopes = []",
+            )
+            .bind(("username", username.to_string()))
+            .bind(("password", password.to_string()))
+            .await?;
+
+        // Create user with explicit table insertion instead of signup
+        let user: Option<User> = req.take(0)?;
+
+        tracing::trace!("Created user: {:?}", user);
+        user.ok_or_else(|| color_eyre::eyre::eyre!("User creation failed"))
+    }
+
+    pub async fn get_user(username: &str) -> color_eyre::Result<Self> {
+        let mut res = DB
+            .query("SELECT * FROM user WHERE username = $username")
+            .bind(("username", username.to_string()))
+            .await?;
+
+        let user: Option<User> = res.take(0)?;
+
+        user.ok_or_else(|| color_eyre::eyre::eyre!("User not found"))
+    }
+
+    pub async fn delete(&self) -> color_eyre::Result<()> {
+        let mut res = DB
+            .query("DELETE FROM user WHERE username = $username")
+            .bind(("username", self.username.to_string()))
+            .await?;
+
+        let _user: Option<User> = res.take(0)?;
+
+        Ok(())
+    }
+
+    #[tracing::instrument]
+    pub async fn login_user(username: &str, password: &str) -> color_eyre::Result<Self> {
+        tracing::info!("User login attempt for: {}", username);
+
+        // let config = crate::config::config();
+
+        // get user from database
+        let mut res = DB.query("SELECT * FROM user WHERE username = $username AND crypto::argon2::compare(password, $password)")
+            .bind(("username", username.to_string()))
+            .bind(("password", password.to_string()))
+            .await?;
+
+        let user: Option<User> = res.take(0)?;
+
+        user.ok_or_else(|| color_eyre::eyre::eyre!("Invalid username or password"))
+    }
 }
 
 pub async fn create_user(username: &str, password: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
-
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let password_hash = argon2
-        .hash_password(password.as_bytes(), &salt)?
-        .to_string();
-
-    let user = User {
-        username: username.to_string(),
-        password_hash,
-    };
-
-    let _created: Option<User> = DB.create(("user", username)).content(user).await?;
-
-    Ok(())
+    match User::create(username, password).await {
+        Ok(_) => {
+            // Double-check that the user is now in the database
+            let users: Vec<User> = DB.select("user").await?;
+            tracing::info!(
+                "After creating user, found {} users in database",
+                users.len()
+            );
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[derive(Deserialize)]
@@ -75,22 +144,27 @@ pub async fn list_users() -> Result<Json<Vec<UserInfo>>, StatusCode> {
 }
 
 pub async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode, StatusCode> {
-    let _: Option<User> = DB
-        .delete(("user", username))
+    let user = User::get_user(&username)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    user.delete()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
+// Update the middleware function signature to match what Axum expects
 pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
-    // First check if there are any users in the database
-    let users: Vec<User> = DB
-        .select("user")
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     // If there are no users, bypass authentication and add a warning header
+    let users: Vec<User> = match DB.select("user").await {
+        Ok(users) => users,
+        Err(e) => {
+            tracing::error!("Failed to fetch users: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
     if users.is_empty() {
         tracing::warn!(
             "No users found in database. Authentication bypassed! Please create at least 1 admin user"
@@ -105,32 +179,32 @@ pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, Stat
         return Ok(response);
     }
 
-    if let Some(auth_header) = req.headers().get("Authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if auth_str.starts_with("Basic ") {
-                let credentials_b64 = auth_str.trim_start_matches("Basic ").trim();
-                if let Ok(decoded) = BASE64.decode(credentials_b64) {
-                    if let Ok(decoded_str) = String::from_utf8(decoded) {
-                        let parts: Vec<&str> = decoded_str.splitn(2, ':').collect();
-                        if parts.len() == 2 {
-                            let username = parts[0];
-                            let password = parts[1];
+    // Retrieve the Authorization header.
+    let auth_header = req
+        .headers()
+        .get("Authorization")
+        .and_then(|val| val.to_str().ok());
 
-                            let user: Option<User> = DB
-                                .select(("user", username))
-                                .await
-                                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if let Some(auth_str) = auth_header {
+        if auth_str.starts_with("Basic ") {
+            // Decode the base64-encoded credentials.
+            let credentials_b64 = auth_str.trim_start_matches("Basic ").trim();
+            if let Ok(decoded) = BASE64.decode(credentials_b64) {
+                if let Ok(decoded_str) = String::from_utf8(decoded) {
+                    let mut parts = decoded_str.splitn(2, ':');
+                    let username = parts.next();
+                    let password = parts.next();
 
-                            if let Some(user) = user {
-                                let parsed_hash = PasswordHash::new(&user.password_hash)
-                                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-                                if Argon2::default()
-                                    .verify_password(password.as_bytes(), &parsed_hash)
-                                    .is_ok()
-                                {
-                                    return Ok(next.run(req).await);
-                                }
+                    if let (Some(username), Some(password)) = (username, password) {
+                        // Try to authenticate using our login function
+                        match User::login_user(username, password).await {
+                            Ok(_) => return Ok(next.run(req).await),
+                            Err(e) => {
+                                tracing::error!(
+                                    "Authentication failed for user {}: {}",
+                                    username,
+                                    e
+                                );
                             }
                         }
                     }
@@ -139,6 +213,7 @@ pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, Stat
         }
     }
 
+    // Authentication failed, return unauthorized
     let mut response = (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     response.headers_mut().insert(
         axum::http::header::WWW_AUTHENTICATE,

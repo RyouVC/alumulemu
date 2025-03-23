@@ -5,12 +5,15 @@ use std::cmp::min;
 use std::fs::File;
 use std::io::Write;
 
+use crate::db::NspMetadata;
+
+const TITLEDB_BASEURL: &str = "https://github.com/blawar/titledb/raw/refs/heads/master/";
+
+/// Downloads a TitleDB file from the internet
 pub async fn download_titledb(client: &Client, region: &str, language: &str) -> Result<(), String> {
     tracing::info!("Pulling TitleDB data for {region}-{language}");
-    let url = format!(
-        "https://github.com/blawar/titledb/raw/refs/heads/master/{}.{}.json",
-        region, language
-    );
+    let url = format!("{TITLEDB_BASEURL}/{region}.{language}.json");
+
     let path = format!("{region}.{language}.json");
     let res = client
         .get(&url)
@@ -43,4 +46,16 @@ pub async fn download_titledb(client: &Client, region: &str, language: &str) -> 
     pb.finish_with_message(format!("Downloaded {} to {}", url, path_clone));
     tracing::info!("Pulled TitleDB data for {region}-{language}");
     Ok(())
+}
+
+/// Formats a game name for display with title ID and version information
+pub fn format_game_name(metadata: &NspMetadata, filename: &str, extension: &str) -> String {
+    let name = match &metadata.title_name {
+        Some(n) => n.clone(),
+        None => filename.trim().trim_end_matches(extension).to_string(),
+    };
+    format!(
+        "{} [{}][{}].{}",
+        name, metadata.title_id, metadata.version, extension
+    )
 }
