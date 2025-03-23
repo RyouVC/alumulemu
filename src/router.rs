@@ -390,23 +390,28 @@ pub fn api_router() -> Router {
     // .layer(middleware::from_fn(basic_auth))
 }
 
+// todo: use mime_types crate
+fn get_content_type(path: &str) -> &'static str {
+    match path.split('.').last() {
+        Some("css") => "text/css",
+        Some("js") => "application/javascript",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("svg") => "image/svg+xml",
+        Some("ico") => "image/x-icon",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        Some("eot") => "application/vnd.ms-fontobject",
+        Some("otf") => "font/otf",
+        _ => "application/octet-stream",
+    }
+}
+
 async fn serve_static_file(path: String) -> impl IntoResponse {
     match std::fs::read(&path) {
         Ok(contents) => {
-            let content_type = match path.split('.').last() {
-                Some("css") => "text/css",
-                Some("js") => "application/javascript",
-                Some("png") => "image/png",
-                Some("jpg") | Some("jpeg") => "image/jpeg",
-                Some("svg") => "image/svg+xml",
-                Some("ico") => "image/x-icon",
-                Some("woff") => "font/woff",
-                Some("woff2") => "font/woff2",
-                Some("ttf") => "font/ttf",
-                Some("eot") => "application/vnd.ms-fontobject",
-                Some("otf") => "font/otf",
-                _ => "application/octet-stream",
-            };
+            let content_type = get_content_type(&path);
             (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, content_type)],
