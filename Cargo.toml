@@ -12,6 +12,12 @@ repository = "https://github.com/RyouVC/alumulemu"
 readme = "README.md"
 keywords = ["nintendo", "switch", "horizon", "repository", "manager"]
 
+[profile.release]
+lto = true
+strip = true
+opt-level = 3
+panic = 'abort'
+codegen-units = 1
 
 [dependencies]
 axum = "0.8.1"
