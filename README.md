@@ -68,12 +68,19 @@ The region and language code is combined to form the locale code used to query t
 - `ALU_TITLE_KEYS`: The path to the Switch title keys file. This is required to decrypt some titles and DLCs.
 
 - `ALU_HOST`: The host to bind the server to. Defaults to `0.0.0.0:3000`.
+- `ALU_TITLE_DB_CACHE_DIR`: The directory to cache title database files in. Defaults to `.` (current working directory) or `/var/cache/titledb` if running in a container.
+- `ALU_PUBLIC`: Whether to run the server in public mode. Defaults to `false`. If set to `true`, the server will not require authentication to access the API. However administrative endpoints will still require authentication if there are users in the database.
 
 ### Running
 
 You can run a Docker/Podman container with the provided example `docker-compose.yml` file.
 
 You may also build this project from source.
+
+> [!NOTE]
+> Once the server is running, authentication is disabled by default when there are no users in the database. You should create a user by going to `/admin/users` and creating a user. It will then automatically lock down the server to require authentication.
+>
+> It is **strongly recommended** to set up authentication before running the server in a public environment.
 
 ### Building and developing
 

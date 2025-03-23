@@ -10,7 +10,6 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-
 use crate::{db::DB, index::TinfoilResponse};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -152,6 +151,23 @@ pub async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusC
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Middleware for optional basic authentication, can be toggled on/off with an environment variable
+///
+/// Checks if the backend is public *or* if there are no users in the database. If there are no users,
+/// authentication is bypassed and a warning header is added to the response.
+///
+/// If there are users, redirects to `basic_auth` middleware.
+pub async fn basic_auth_if_public(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    let config = crate::config::config();
+    let is_public = config.backend_config.public;
+
+    if !is_public {
+        basic_auth(req, next).await
+    } else {
+        Ok(next.run(req).await)
+    }
 }
 
 pub async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {

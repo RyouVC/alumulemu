@@ -10,7 +10,10 @@ pub async fn download_titledb(client: &Client, region: &str, lang: &str) -> Resu
     let url = format!("{TITLEDB_BASEURL}/{}.{}.json", region, lang);
 
     let cache_dir = titledb_cache_dir();
-    let file_path = format!("{}/{}.{}.json", cache_dir, region, lang);
+    let file_path = cache_dir.join(format!("{}.{}.json", region, lang))
+        .to_str()
+        .unwrap()
+        .to_string();
 
     tracing::info!(
         "Downloading TitleDB for {} {} to {}",

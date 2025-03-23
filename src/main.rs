@@ -11,6 +11,7 @@ use cron::Schedule;
 use db::{create_precomputed_metaview, init_database};
 use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 use titledb::TitleDBImport;
@@ -22,16 +23,16 @@ pub fn games_dir() -> String {
     config.backend_config.rom_dir
 }
 
-pub fn titledb_cache_dir() -> String {
+pub fn titledb_cache_dir() -> PathBuf {
     let config = config::config();
-    let cache_dir = config.backend_config.title_db_cache_dir.to_string();
+    let cache_dir = config.backend_config.temp_dir();
 
     // Ensure the directory exists
     if !std::path::Path::new(&cache_dir).exists() {
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
             tracing::error!("Failed to create titledb cache directory: {}", e);
         } else {
-            tracing::debug!("Created titledb cache directory: {}", cache_dir);
+            tracing::debug!("Created titledb cache directory: {}", cache_dir.display());
         }
     }
 
@@ -56,7 +57,7 @@ fn parse_secondary_locale_string(locale: &str) -> (String, String) {
 async fn import_titledb(lang: &str, region: &str) {
     let client = Client::new();
     let cache_dir = titledb_cache_dir();
-    let path = format!("{}/{}.{}.json", cache_dir, region, lang);
+    let path = cache_dir.join(format!("{}.{}.json", region, lang));
 
     let should_download = if let Ok(metadata) = std::fs::metadata(&path) {
         if let Ok(modified) = metadata.modified() {
@@ -104,17 +105,33 @@ async fn import_titledb_background(config: config::Config) {
     let span = tracing::info_span!("titledb_import");
     let _enter = span.enter();
 
-    import_titledb(
-        &config.backend_config.primary_lang,
-        &config.backend_config.primary_region,
-    )
-    .await;
+    // Create primary import task
+    let primary_task = tokio::spawn({
+        let lang = config.backend_config.primary_lang.clone();
+        let region = config.backend_config.primary_region.clone();
+        async move {
+            import_titledb(&lang, &region).await;
+            tracing::info!("TitleDB import complete for primary locale");
+        }
+    });
 
-    tracing::info!("TitleDB import complete for primary locale");
+    // Create secondary import tasks
+    let secondary_tasks: Vec<_> = config
+        .backend_config
+        .get_valid_secondary_locales()
+        .into_iter()
+        .map(|locale| {
+            tokio::spawn(async move {
+                let (region, lang) = parse_secondary_locale_string(&locale);
+                import_titledb(&lang, &region).await;
+            })
+        })
+        .collect();
 
-    for locale in config.backend_config.get_valid_secondary_locales() {
-        let (region, lang) = parse_secondary_locale_string(&locale);
-        import_titledb(&lang, &region).await;
+    // Wait for all tasks to complete
+    primary_task.await.expect("Primary import task failed");
+    for task in secondary_tasks {
+        task.await.expect("Secondary import task failed");
     }
 
     tracing::info!("TitleDB import complete for all locales");

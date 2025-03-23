@@ -1,5 +1,7 @@
 //! Config module for alumulemu
 
+use std::path::PathBuf;
+
 use clap::{Parser, ValueEnum};
 
 #[derive(ValueEnum, Debug, Clone, Default)]
@@ -61,8 +63,11 @@ pub struct BackendConfig {
     #[clap(long, env = "ALU_TITLE_KEYS", default_value = "~/.switch/title.keys")]
     pub title_keys: String,
 
-    #[clap(long, env = "ALU_TITLE_DB_CACHE_DIR", default_value = ".")]
+    #[clap(long, env = "ALU_TITLE_DB_CACHE_DIR", default_value_t = String::from(std::env::temp_dir().join("titledb").to_str().unwrap_or("/tmp/titledb")))]
     pub title_db_cache_dir: String,
+
+    #[clap(long, env = "ALU_PUBLIC", default_value = "false")]
+    pub public: bool,
 }
 
 impl BackendConfig {
@@ -77,6 +82,10 @@ impl BackendConfig {
             .filter(|s| !s.is_empty())
             .cloned()
             .collect()
+    }
+
+    pub fn temp_dir(&self) -> PathBuf {
+        self.title_db_cache_dir.clone().into()
     }
 }
 

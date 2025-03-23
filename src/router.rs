@@ -1,3 +1,4 @@
+use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
 use crate::db::create_precomputed_metaview;
@@ -6,6 +7,7 @@ use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
 use crate::util::format_game_name;
+use axum::middleware;
 use axum::{
     Json, Router,
     extract::Path as HttpPath,
@@ -839,5 +841,5 @@ pub fn create_router() -> Router {
         // user things
         .nest("/api", user_router())
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
-    // .layer(middleware::from_fn(basic_auth))
+    .layer(middleware::from_fn(basic_auth_if_public))
 }
