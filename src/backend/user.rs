@@ -1,4 +1,3 @@
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     Json, Router,
     body::Body,
@@ -10,7 +9,7 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
-use surrealdb::opt::auth::Record;
+
 
 use crate::{db::DB, index::TinfoilResponse};
 
@@ -111,6 +110,7 @@ pub async fn create_user(username: &str, password: &str) -> Result<(), Box<dyn s
 pub struct CreateUserRequest {
     username: String,
     password: String,
+    scopes: Option<Vec<String>>,
 }
 
 pub async fn create_user_handler(

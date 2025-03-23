@@ -386,7 +386,36 @@ impl Title {
 
         Ok(data)
     }
+
+    pub async fn get_from_metaview_cache(title_id: &str) -> Result<Option<Self>> {
+        let is_update = title_id.ends_with("800");
+        let locale = crate::config::config().backend_config.get_locale_string();
+
+        let title_id_query = if is_update {
+            tracing::trace!("Fetching base game metadata for update");
+            title_id.replace("800", "000")
+        } else {
+            title_id.to_string()
+        };
+
+        let query = format!("SELECT * FROM metaview_{locale} WHERE titleId = $tid");
+        let mut query = DB.query(query).bind(("tid", title_id_query)).await?;
+        let mut data: Option<Self> = query.take(0)?;
+
+        if is_update {
+            if let Some(title) = data.as_mut() {
+                // Append (Update) to the title name
+                if let Some(name) = &mut title.name {
+                    name.push_str(" (Update)");
+                }
+                title.title_id = Some(title_id.to_string());
+                title.title_ids = vec![title_id.to_string()];
+            }
+        }
+        Ok(data)
+    }
 }
+
 #[tracing::instrument(skip(title), fields(title_id = title.title_id.clone(), nsuid = title.nsu_id.unwrap_or_default()))]
 async fn import_entry_to_db(title: TitleDbEntry, db_sfx: &str) -> Result<()> {
     let table_name = format!("titles_{}", db_sfx);
