@@ -156,13 +156,13 @@ pub async fn list_files() -> AlumRes<Json<Index>> {
 }
 
 pub async fn download_file(
-    HttpPath(title_id): HttpPath<String>,
+    HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    if title_id.contains("..") {
+    if title_id_param.contains("..") {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    tracing::debug!("Looking for title ID: {}", title_id);
+    tracing::debug!("Looking for title ID: {}", title_id_param);
 
     let all_metadata = NspMetadata::get_all()
         .await
@@ -170,20 +170,60 @@ pub async fn download_file(
 
     tracing::debug!("Found {} metadata entries", all_metadata.len());
 
+    // Check if the title_id_param contains a version specifier (_v)
+    let (title_id, version_filter) = if let Some(pos) = title_id_param.find("_v") {
+        let (base, version_part) = title_id_param.split_at(pos);
+        let version = version_part.trim_start_matches("_v");
+        (base.to_string(), Some(version.to_string()))
+    } else {
+        (title_id_param, None)
+    };
+
     // Debug print all title IDs
     for metadata in all_metadata.iter() {
-        tracing::debug!("DB title ID: {}", metadata.title_id);
+        tracing::debug!(
+            "DB title ID: {}, version: {}",
+            metadata.title_id,
+            metadata.version
+        );
     }
 
     let file_path = all_metadata
         .iter()
         .find(|m| {
-            tracing::debug!("Comparing {} with {}", m.title_id, title_id);
-            m.title_id == title_id
+            let title_id_matches = m.title_id == title_id;
+
+            // If we have a version filter, check if the version matches as well
+            let version_matches = if let Some(ref v) = version_filter {
+                // Remove 'v' prefix if present for comparison
+                let normalized_version = m.version.trim_start_matches('v');
+                let normalized_filter = v.trim_start_matches('v');
+
+                normalized_version == normalized_filter
+            } else {
+                true // No version filter, so this is automatically a match
+            };
+
+            tracing::debug!(
+                "Comparing {} with {}, version {} with filter {:?}: matches={}/{}",
+                m.title_id,
+                title_id,
+                m.version,
+                version_filter,
+                title_id_matches,
+                version_matches
+            );
+
+            title_id_matches && version_matches
         })
         .map(|m| m.path.clone())
         .ok_or_else(|| {
-            tracing::error!("No matching title ID found");
+            let filter_info = if let Some(v) = &version_filter {
+                format!("title_id {} with version {}", title_id, v)
+            } else {
+                format!("title_id {}", title_id)
+            };
+            tracing::error!("No matching {} found", filter_info);
             StatusCode::NOT_FOUND
         })?;
 
