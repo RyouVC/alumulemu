@@ -1,6 +1,6 @@
 use std::process::Command;
 use std::result::Result;
-pub async fn build_frontend() -> Result<(), std::io::Error> {
+pub fn main() -> Result<(), std::io::Error> {
     let current_dir = std::env::current_dir()?;
     let frontend_dir = current_dir.join("alu-panel");
 
@@ -14,6 +14,6 @@ pub async fn build_frontend() -> Result<(), std::io::Error> {
         .current_dir(&frontend_dir)
         .status()?;
 
-    tracing::info!("frontend built");
+    // tracing::info!("frontend built");
     Ok(())
 }

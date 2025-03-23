@@ -59,7 +59,7 @@ pub async fn init_database() -> surrealdb::Result<()> {
             .await?;
         }
         crate::config::DatabaseAuthMethod::None => {
-            tracing::info!("No authentication configured");
+            tracing::info!("No authentication configured for database");
         }
     }
 

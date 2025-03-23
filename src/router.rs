@@ -179,6 +179,27 @@ pub async fn download_file(
 }
 
 async fn basic_auth(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+    // First check if there are any users in the database
+    let users: Vec<User> = DB
+        .select("user")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // If there are no users, bypass authentication and add a warning header
+    if users.is_empty() {
+        tracing::warn!(
+            "No users found in database. Authentication bypassed! Please create at least 1 admin user"
+        );
+        let mut response = next.run(req).await;
+        response.headers_mut().insert(
+            "X-Auth-Warning",
+            "No users found in database. Authentication bypassed."
+                .parse()
+                .unwrap(),
+        );
+        return Ok(response);
+    }
+
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if auth_str.starts_with("Basic ") {
