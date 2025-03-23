@@ -110,6 +110,7 @@ dependencies = [
  "http",
  "indicatif",
  "jwalk",
+ "mime_guess",
  "regex",
  "reqwest",
  "serde",

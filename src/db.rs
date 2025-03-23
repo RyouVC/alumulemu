@@ -32,7 +32,15 @@ impl NspMetadata {
     }
 
     #[tracing::instrument(level = "debug")]
+    pub async fn delete(&self) -> surrealdb::Result<()> {
+        tracing::debug!("Deleting metadata for {}", self.path);
+        let _: Option<NspMetadata> = DB.delete(("nsp_metadata", &self.path)).await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "debug")]
     pub async fn delete_cache() -> surrealdb::Result<()> {
+        tracing::debug!("Deleting all metadata from cache");
         let _: Vec<NspMetadata> = DB.delete("nsp_metadata").await?;
         Ok(())
     }
