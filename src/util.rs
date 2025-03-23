@@ -10,7 +10,7 @@ use crate::db::NspMetadata;
 const TITLEDB_BASEURL: &str = "https://github.com/blawar/titledb/raw/refs/heads/master/";
 
 /// Downloads a TitleDB file from the internet
-pub async fn download_titledb(client: &Client, region: &str, language: &str) -> Result<(), String> {
+pub async fn download_titledb(client: &Client, region: &str, language: &str) -> Result<String, String> {
     tracing::info!("Pulling TitleDB data for {region}-{language}");
     let url = format!("{TITLEDB_BASEURL}/{region}.{language}.json");
 
@@ -30,7 +30,7 @@ pub async fn download_titledb(client: &Client, region: &str, language: &str) -> 
         .progress_chars("#>-"));
     pb.set_message(format!("Downloading file {}", url));
     let path_clone = path.clone();
-    let mut file = File::create(path).or(Err(format!("Failed to create file '{}'", path_clone)))?;
+    let mut file = File::create(&path).or(Err(format!("Failed to create file '{}'", path_clone)))?;
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
 
@@ -45,7 +45,7 @@ pub async fn download_titledb(client: &Client, region: &str, language: &str) -> 
 
     pb.finish_with_message(format!("Downloaded {} to {}", url, path_clone));
     tracing::info!("Pulled TitleDB data for {region}-{language}");
-    Ok(())
+    Ok(path_clone)
 }
 
 /// Formats a game name for display with title ID and version information
