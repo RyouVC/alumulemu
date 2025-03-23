@@ -60,6 +60,9 @@ pub struct BackendConfig {
 
     #[clap(long, env = "ALU_TITLE_KEYS", default_value = "~/.switch/title.keys")]
     pub title_keys: String,
+
+    #[clap(long, env = "ALU_TITLE_DB_CACHE_DIR", default_value = ".")]
+    pub title_db_cache_dir: String,
 }
 
 impl BackendConfig {
