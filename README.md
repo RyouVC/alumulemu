@@ -37,6 +37,7 @@ You will require:
 - SurrealDB instance (optional, recommended for better performance)
 - Console-specific cryptographic keys (required, obtain from your own device or take someone else's)
 - A stable network connection (optional)
+- Your own game dumps (optional)
 
 ### Setup
 

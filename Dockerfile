@@ -21,8 +21,8 @@ RUN curl -sL https://deb.nodesource.com/setup_23.x | bash
 RUN apt-get install -y nodejs
 
 # Install PNPM
-RUN curl -fsSL https://get.pnpm.io/install.sh | sh -s
-ENV PATH="/root/.pnpm/bin:${PATH}"
+RUN corepack enable
+RUN corepack prepare pnpm@latest --activate
 
 COPY . /app
 WORKDIR /app
