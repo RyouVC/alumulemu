@@ -76,7 +76,7 @@ impl User {
 
     #[tracing::instrument]
     pub async fn login_user(username: &str, password: &str) -> color_eyre::Result<Self> {
-        tracing::info!("User login attempt for: {}", username);
+        // tracing::info!("User login attempt for: {}", username);
 
         // let config = crate::config::config();
 

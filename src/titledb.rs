@@ -97,6 +97,7 @@ impl GameFileDataNaive {
                 let cnmt = parse_cnmt_output(&cnmt_output);
                 let (title_id, version) = get_title_id_and_version(cnmt);
                 tracing::debug!("Title ID: {:?}", title_id);
+                tracing::debug!("Version: {:?}", version);
 
                 let metadata = NspMetadata {
                     path: path.to_str().unwrap().to_string(),
@@ -110,7 +111,9 @@ impl GameFileDataNaive {
 
                 // Only query title DB for new files
                 let title_query_start = std::time::Instant::now();
-                let title = Title::get_from_title_id("US_en", &title_id).await?;
+                let config = crate::config::config();
+                let locale = config.backend_config.get_locale_string();
+                let title = Title::get_from_title_id(&locale, &title_id).await?;
                 tracing::debug!("Title query took {:?}", title_query_start.elapsed());
 
                 // If we got a title, return it
@@ -128,7 +131,7 @@ impl GameFileDataNaive {
                     return Ok(Self {
                         name: title_name.unwrap_or_default(),
                         title_id: Some(title_id.to_string()),
-                        version: title.version,
+                        version: Some(version.clone()), // Use the NSP file's version instead of title.version
                         region: title.region,
                         other_tags: Vec::new(),
                         extension: Some(extension.to_string()),

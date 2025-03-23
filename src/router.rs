@@ -174,8 +174,19 @@ pub async fn list_files() -> AlumRes<Json<Index>> {
 pub async fn download_file(
     HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    if title_id_param.contains("..") {
-        return Err(StatusCode::BAD_REQUEST);
+    // Block any path traversal attempts
+    if title_id_param.contains("..")
+        || title_id_param.contains('/')
+        || title_id_param.contains('\\')
+    {
+        tracing::warn!(
+            "Path traversal attempt detected in title ID: {}",
+            title_id_param
+        );
+        return Ok(Json(TinfoilResponse::Failure(
+            "path traversal not allowed for this request".to_string(),
+        ))
+        .into_response());
     }
 
     tracing::debug!("Looking for title ID: {}", title_id_param);
@@ -421,6 +432,30 @@ pub async fn download_file(
     Ok(response)
 }
 
+// todo: create precomputed view for this
+#[tracing::instrument]
+pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> AlumRes<Json<crate::titledb::Title>> {
+    tracing::info!("Getting title metadata for {}", title_id_param);
+    // First check if we have this game in our metadata
+    let all_metadata = NspMetadata::get_all()
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+    let exists = all_metadata.iter().any(|m| m.title_id == title_id_param);
+    if !exists {
+        return Err(Error::Error(color_eyre::eyre::eyre!(
+            "Title not found in local library"
+        )));
+    }
+
+    // Then get the title info
+    let config = crate::config::config();
+    let lang_code = config.backend_config.get_locale_string();
+    let title = crate::titledb::Title::get_from_title_id(&lang_code, &title_id_param)
+        .await?
+        .ok_or_else(|| Error::Error(color_eyre::eyre::eyre!("Title not found in database")))?;
+    Ok(Json(title))
+}
+
 pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
     tracing::info!("Rescanning games directory");
     update_metadata_from_filesystem(&games_dir()).await?;
@@ -442,7 +477,6 @@ pub fn admin_router() -> Router {
         .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
 }
 
-// todo: use mime_types crate
 fn get_content_type(path: &str) -> String {
     mime_guess::from_path(path)
         .first_or_octet_stream()
@@ -451,7 +485,7 @@ fn get_content_type(path: &str) -> String {
 }
 
 async fn serve_static_file(path: String) -> impl IntoResponse {
-    match std::fs::read(&path) {
+    match tokio::fs::read(&path).await {
         Ok(contents) => {
             let content_type = get_content_type(&path);
             (
@@ -486,6 +520,7 @@ pub fn create_router() -> Router {
         // add static router
         .merge(static_router())
         .route("/api/get_game/{title_id}", get(download_file))
+        .route("/api/title_meta/{title_id}", get(title_meta))
         // web ui
         .nest("/admin", admin_router())
         // user things

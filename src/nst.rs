@@ -97,7 +97,7 @@ pub fn parse_cnmt_output(output: &str) -> ContentMeta {
 
     ContentMeta {
         title_id: title_id_re.captures(output).unwrap()[1].to_string(),
-        version: format!("v{}", version_re.captures(output).unwrap()[1].to_string()),
+        version: format!("v{}", &version_re.captures(output).unwrap()[1]),
         content_type: type_re.captures(output).unwrap()[1].parse().unwrap(),
         attributes: u32::from_str_radix(&attributes_re.captures(output).unwrap()[1], 16).unwrap(),
         storage_id: storage_id_re.captures(output).unwrap()[1].parse().unwrap(),
@@ -106,7 +106,7 @@ pub fn parse_cnmt_output(output: &str) -> ContentMeta {
             .unwrap(),
         required_download_system_version: format!(
             "v{}",
-            req_download_ver_re.captures(output).unwrap()[1].to_string()
+            &req_download_ver_re.captures(output).unwrap()[1]
         ),
         digest: digest_re.captures(output).unwrap()[1].to_string(),
     }
