@@ -89,6 +89,7 @@ impl GameFileDataNaive {
                 tracing::debug!("Found cached metadata for {}", path.display());
                 let mut naive = Self::parse_from_filename(filename);
                 naive.title_id = Some(existing_metadata.title_id.clone());
+                naive.version = Some(existing_metadata.version.clone());
                 return Ok(naive);
             } else {
                 tracing::debug!("Reading NSP file: {:?}", filename);
@@ -101,6 +102,7 @@ impl GameFileDataNaive {
                     path: path.to_str().unwrap().to_string(),
                     title_id: title_id.clone(),
                     version: version.clone(),
+                    title_name: None,
                 };
                 if let Err(e) = metadata.save().await {
                     tracing::warn!("Failed to save metadata: {}", e);
@@ -113,8 +115,18 @@ impl GameFileDataNaive {
 
                 // If we got a title, return it
                 if let Some(title) = title {
+                    let title_name = title.name.clone();
+                    let metadata = NspMetadata {
+                        path: path.to_str().unwrap().to_string(),
+                        title_id: title_id.clone(),
+                        version: version.clone(),
+                        title_name: title_name.clone(),
+                    };
+                    if let Err(e) = metadata.save().await {
+                        tracing::warn!("Failed to save metadata with title name: {}", e);
+                    }
                     return Ok(Self {
-                        name: title.name.unwrap_or_default(),
+                        name: title_name.unwrap_or_default(),
                         title_id: Some(title_id.to_string()),
                         version: title.version,
                         region: title.region,
@@ -335,7 +347,10 @@ impl Title {
     pub async fn get_from_title_id(lang: &str, title_id: &str) -> Result<Option<Self>> {
         // If the title ID ends with *800, it's an update for a game,
         // So we can replace it with 000 to get the base game
-        let title_id = if title_id.ends_with("800") {
+        let is_update = title_id.ends_with("800");
+
+        let title_id_query = if is_update {
+            tracing::trace!("Fetching base game metadata for update");
             title_id.replace("800", "000")
         } else {
             title_id.to_string()
@@ -343,8 +358,23 @@ impl Title {
 
         let query =
             format!("SELECT * FROM titles_{lang} WHERE titleId = $tid OR ids CONTAINS $tid");
-        let mut query = DB.query(&query).bind(("tid", title_id)).await?;
-        let data: Option<Self> = query.take(0)?;
+        let mut query = DB
+            .query(query)
+            // .bind(("table", format!("titles_{lang}")))
+            .bind(("tid", title_id_query))
+            .await?;
+        let mut data: Option<Self> = query.take(0)?;
+
+        if is_update {
+            if let Some(title) = data.as_mut() {
+                // Append (Update) to the title name
+                if let Some(name) = &mut title.name {
+                    name.push_str(" (Update)");
+                }
+                title.title_id = Some(title_id.to_string());
+                title.title_ids = vec![title_id.to_string()];
+            }
+        }
 
         // modify the title id
 

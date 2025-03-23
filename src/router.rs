@@ -14,7 +14,7 @@ use axum::middleware::{self, Next};
 use axum::{
     BoxError, Json, Router,
     body::Body,
-    extract::Path as HttpPath,
+    extract::{Path as HttpPath, Query},
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::{delete, get, post},
@@ -49,15 +49,11 @@ impl IntoResponse for Error {
 
 type AlumRes<T> = Result<T, Error>;
 #[tracing::instrument]
-pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
-    // use regex::Regex;
-    // let correct_format =
-    //     Regex::new(r"^.+\s\[[A-Fa-f0-9]{16}\]\[v\d+\]\.(nsp|xci|nsz|ncz|xcz)$").unwrap();
-
-    let mut idx = Index::default();
+pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Result<()> {
     let walker = jwalk::WalkDir::new(path);
     let paths = walker.into_iter();
     let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+
     for entry in paths {
         let path = entry.map_err(|e| Error::Error(color_eyre::eyre::eyre!(e.to_string())))?;
         let filename = path.file_name().to_string_lossy().into_owned();
@@ -70,41 +66,45 @@ pub async fn scan_games_path(path: &str) -> color_eyre::eyre::Result<Index> {
         {
             continue;
         }
+
+        // Skip if we already have metadata for this file
+        if all_metadata
+            .iter()
+            .any(|m| m.path == path.path().to_str().unwrap())
+        {
+            continue;
+        }
+
         let game_data = GameFileDataNaive::get(&path.path(), &all_metadata).await?;
-        println!("{:?}", game_data);
         let title_id = game_data
             .title_id
             .clone()
             .unwrap_or_else(|| "00000000AAAA0000".to_string());
-        let formatted_name = {
-            match game_data.extension {
-                Some(ext) => format!(
-                    "{} [{}][{}].{}",
-                    game_data.name.trim().trim_end_matches(".nsp"),
-                    title_id,
-                    game_data.version.unwrap_or_else(|| "v0".to_string()),
-                    ext
-                ),
-                None => format!(
-                    "{} [{}][{}]",
-                    game_data.name.trim().trim_end_matches(".nsp"),
-                    title_id,
-                    game_data.version.unwrap_or_else(|| "v0".to_string())
-                ),
-            }
+
+        // Get the title name from metadata if available
+        let title_name = all_metadata
+            .iter()
+            .find(|m| m.path == path.path().to_str().unwrap())
+            .and_then(|m| m.title_name.clone())
+            .unwrap_or_else(|| game_data.name.trim().trim_end_matches(".nsp").to_string());
+
+        let metadata = NspMetadata {
+            path: path.path().to_str().unwrap().to_string(),
+            title_id: title_id.clone(),
+            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
+            title_name: Some(title_name),
         };
 
-        tracing::trace!("Formatted name: {}", formatted_name);
-
-        idx.add_file(
-            &path.path(),
-            "/api/get_game",
-            &formatted_name,
-            Some(&title_id),
-        );
+        if let Err(e) = metadata.save().await {
+            tracing::warn!(
+                "Failed to save metadata for {}: {}",
+                path.path().display(),
+                e
+            );
+        }
     }
 
-    Ok(idx)
+    Ok(())
 }
 
 async fn handle_error(error: BoxError) -> impl IntoResponse {
@@ -112,9 +112,44 @@ async fn handle_error(error: BoxError) -> impl IntoResponse {
     Json(response)
 }
 
-pub async fn list_files() -> AlumRes<Json<Index>> {
-    let games = scan_games_path(&games_dir()).await?;
+#[tracing::instrument]
+pub async fn generate_index_from_metadata() -> color_eyre::eyre::Result<Index> {
+    let mut idx = Index::default();
+    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
 
+    for metadata in all_metadata {
+        let path = std::path::Path::new(&metadata.path);
+        let filename = path.file_name().unwrap().to_string_lossy().into_owned();
+        let extension = path.extension().unwrap_or_default().to_str().unwrap();
+
+        let formatted_name = format!(
+            "{} [{}][{}].{}",
+            metadata
+                .title_name
+                .unwrap_or_else(|| filename.trim().trim_end_matches(extension).to_string()),
+            metadata.title_id,
+            metadata.version,
+            extension
+        );
+
+        idx.add_file(
+            path,
+            "/api/get_game",
+            &formatted_name,
+            Some(&metadata.title_id),
+        );
+    }
+
+    Ok(idx)
+}
+
+#[derive(Deserialize)]
+struct ListFilesQuery {
+    update: Option<bool>,
+}
+
+pub async fn list_files() -> AlumRes<Json<Index>> {
+    let games = generate_index_from_metadata().await?;
     tracing::trace!("Games retrieved: {:?}", games);
     Ok(Json(games))
 }
@@ -326,9 +361,25 @@ async fn delete_user(HttpPath(username): HttpPath<String>) -> Result<StatusCode,
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Router for /admin endpoints
+pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
+    update_metadata_from_filesystem(&games_dir()).await?;
+    Ok(Json(TinfoilResponse::MiscSuccess(
+        "Games rescanned successfully".to_string(),
+    )))
+}
+
 pub fn admin_router() -> Router {
     Router::new()
+        .route(
+            "/",
+            get(|| async {
+                match std::fs::read_to_string("alu-panel/dist/index.html") {
+                    Ok(contents) => Html(contents).into_response(),
+                    Err(_) => StatusCode::NOT_FOUND.into_response(),
+                }
+            }),
+        )
+        .route("/rescan", post(rescan_games))
         .fallback_service(ServeDir::new("alu-panel/dist"))
         .layer(middleware::from_fn(basic_auth))
 }

@@ -111,6 +111,7 @@ pub enum TinfoilError {
 #[serde(untagged)]
 pub enum TinfoilResponse {
     Success(Index),
+    MiscSuccess(String),
     Failure(String),
     ThemeError(String),
 }
@@ -127,6 +128,9 @@ impl IntoResponse for TinfoilResponse {
                 Json(theme_error),
             )
                 .into_response(),
+            TinfoilResponse::MiscSuccess(misc_success) => {
+                (axum::http::StatusCode::OK, Json(misc_success)).into_response()
+            }
         }
     }
 }
@@ -140,40 +144,30 @@ impl From<Result<Index, String>> for TinfoilResponse {
     }
 }
 
-impl From<TinfoilResponse> for Result<Index, String> {
-    fn from(response: TinfoilResponse) -> Self {
-        match response {
-            TinfoilResponse::Success(index) => Ok(index),
-            TinfoilResponse::Failure(error) => Err(error),
-            TinfoilResponse::ThemeError(error) => Err(error),
-        }
-    }
-}
-
 impl From<Index> for TinfoilResponse {
     fn from(index: Index) -> Self {
         if let Some(failure) = index.failure {
             TinfoilResponse::Failure(failure)
         } else if let Some(theme_error) = index.theme_error {
             TinfoilResponse::ThemeError(theme_error)
+        } else if let Some(success) = index.success {
+            TinfoilResponse::MiscSuccess(success)
         } else {
             TinfoilResponse::Success(index)
         }
     }
 }
 
-impl From<TinfoilResponse> for Index {
+impl From<TinfoilResponse> for Result<Index, String> {
     fn from(response: TinfoilResponse) -> Self {
         match response {
-            TinfoilResponse::Success(index) => index,
-            TinfoilResponse::Failure(failure) => Index {
-                failure: Some(failure),
+            TinfoilResponse::Success(index) => Ok(index),
+            TinfoilResponse::Failure(error) => Err(error),
+            TinfoilResponse::ThemeError(error) => Err(error),
+            TinfoilResponse::MiscSuccess(success) => Ok(Index {
+                success: Some(success),
                 ..Default::default()
-            },
-            TinfoilResponse::ThemeError(theme_error) => Index {
-                theme_error: Some(theme_error),
-                ..Default::default()
-            },
+            }),
         }
     }
 }

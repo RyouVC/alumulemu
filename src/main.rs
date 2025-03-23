@@ -82,6 +82,9 @@ async fn main() -> color_eyre::Result<()> {
 
     // run the TitleDB import in the background
     tokio::spawn(async {
+        let span = tracing::info_span!("titledb_import");
+        let _enter = span.enter();
+        
         tracing::info!("Importing TitleDB...");
         let region = config.backend_config.primary_region;
         let language = config.backend_config.primary_lang;
@@ -100,7 +103,7 @@ async fn main() -> color_eyre::Result<()> {
             &format!("{region}_{language}"),
         )
         .await;
-        tracing::info!("TitleDB downloaded, Alumulemu running...")
+        tracing::info!("TitleDB import complete!");
     });
     tracing::info!("Building frontend...");
     let app = create_router();

@@ -47,6 +47,13 @@ pub struct BackendConfig {
     #[clap(env = "ALU_ROM_DIR", default_value = "games/")]
     pub rom_dir: String,
 }
+
+impl BackendConfig {
+    pub fn get_locale_string(&self) -> String {
+        format!("{}_{}", self.primary_region, self.primary_lang)
+    }
+}
+
 #[derive(Parser, Debug, Clone)]
 pub struct Config {
     #[clap(env = "ALU_HOST", default_value = "0.0.0.0:3000")]

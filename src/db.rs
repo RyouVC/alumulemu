@@ -10,6 +10,7 @@ pub struct NspMetadata {
     pub path: String,
     pub title_id: String,
     pub version: String,
+    pub title_name: Option<String>,
 }
 
 impl NspMetadata {
@@ -34,6 +35,17 @@ impl NspMetadata {
     pub async fn delete_cache() -> surrealdb::Result<()> {
         let _: Vec<NspMetadata> = DB.delete("nsp_metadata").await?;
         Ok(())
+    }
+
+    pub async fn get_titledb_title(
+        &self,
+    ) -> Result<Option<crate::titledb::Title>, color_eyre::Report> {
+        let config = crate::config::config();
+        let locale = config.backend_config.get_locale_string();
+
+        let title = crate::titledb::Title::get_from_title_id(&locale, &self.title_id).await?;
+
+        Ok(title)
     }
 }
 
