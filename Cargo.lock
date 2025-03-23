@@ -2901,9 +2901,9 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "nx-archive"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00722ad8ac14fd3b55e9e2a27482c024f91ed934be84f6458e99ca8a11ae9301"
+checksum = "f77c9ed2a4516ea67bab0cc65dc0756b0acac72847d0e28ea05b9b37f681a649"
 dependencies = [
  "aes",
  "binrw",

@@ -1,0 +1,11 @@
+.git
+target/
+*.nsp
+*.xci
+.vscode/
+Dockerfile
+alu-panel/dist/
+alu-panel/node_modules/
+/games
+/database
+/*.json

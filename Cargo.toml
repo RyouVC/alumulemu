@@ -2,6 +2,13 @@
 name = "alumulemu"
 version = "0.1.0"
 edition = "2024"
+license = "AGPL-3.0"
+authors = ["Cappy Ishihara <cappy@cappuchino.xyz>", "Eri Ishihara <eri@nijika.dev>"]
+description = "Nintendo Horizon repository manager"
+repository = "https://github.com/RyouVC/alumulemu"
+readme = "README.md"
+keywords = ["nintendo", "switch", "horizon", "repository", "manager"]
+
 
 [dependencies]
 axum = "0.8.1"
@@ -34,5 +41,5 @@ envy = "0.4.2"
 dotenvy = { version = "0.15.7", features = ["clap", "cli"] }
 mime_guess = "2.0.5"
 cron = { version = "0.15.0", features = ["serde"] }
-nx-archive = "0.1.0"
+nx-archive = "0.1.1"
 once_cell = "1.21.1"

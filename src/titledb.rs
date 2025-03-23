@@ -79,7 +79,7 @@ impl GameFileDataNaive {
         let filename = path.file_name().unwrap().to_str().unwrap();
         let extension = path.extension().unwrap_or_default().to_str().unwrap();
 
-        if extension == "nsp" {
+        if extension == "nsp" || extension == "nsz" || extension == "xci" || extension == "xcz" {
             //let nsp_data = NspData::read_file(path).unwrap();
             //let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
             if let Some(existing_metadata) = all_metadata
@@ -92,7 +92,7 @@ impl GameFileDataNaive {
                 naive.version = Some(existing_metadata.version.clone());
                 return Ok(naive);
             } else {
-                tracing::debug!("Reading NSP file: {:?}", filename);
+                tracing::debug!("Reading NSP/NSZ/XCI file: {:?}", filename);
                 let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
                 let title_id = cnmt.get_title_id_string();
                 let version = cnmt.header.title_version.to_string();

@@ -1,0 +1,18 @@
+services:
+  alumulemu:
+    image: ghcr.io/ryouvc/alumulemu:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - ALU_PRIMARY_REGION=US
+      - ALU_PRIMARY_LANGUAGE=en
+      - ALU_ROM_DIR=/path/to/roms
+      - ALU_PROD_KEYS=/path/to/keys
+      - ALU_TITLE_KEYS=/path/to/titlekeys
+    volumes:
+      - /path/to/roms:/path/to/roms
+      - /path/to/keys:/path/to/keys
+      - /path/to/titlekeys:/path/to/titlekeys
