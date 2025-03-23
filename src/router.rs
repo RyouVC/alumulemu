@@ -1,5 +1,6 @@
 use crate::backend::user::basic_auth;
 use crate::backend::user::user_router;
+use crate::db::create_precomputed_metaview;
 use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
@@ -457,6 +458,11 @@ pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> Result<im
 pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
     tracing::info!("Rescanning games directory");
     update_metadata_from_filesystem(&games_dir()).await?;
+    tracing::info!("Games rescanned successfully");
+    tracing::info!("(re)Creating precomputed metaview");
+    if let Err(e) = create_precomputed_metaview().await {
+        tracing::warn!("Failed to create precomputed metaview: {}", e);
+    }
     Ok(Json(TinfoilResponse::MiscSuccess(
         "Games rescanned successfully".to_string(),
     )))

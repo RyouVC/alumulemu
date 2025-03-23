@@ -19,6 +19,7 @@ use util::download_titledb;
 
 pub fn games_dir() -> String {
     let config = config::config();
+    tracing::debug!("Games directory: {}", config.backend_config.rom_dir);
     config.backend_config.rom_dir
 }
 
