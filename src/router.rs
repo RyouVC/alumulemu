@@ -434,26 +434,26 @@ pub async fn download_file(
 
 // todo: create precomputed view for this
 #[tracing::instrument]
-pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> AlumRes<Json<crate::titledb::Title>> {
+pub async fn title_meta(HttpPath(title_id_param): HttpPath<String>) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("Getting title metadata for {}", title_id_param);
     // First check if we have this game in our metadata
     let all_metadata = NspMetadata::get_all()
         .await
-        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let exists = all_metadata.iter().any(|m| m.title_id == title_id_param);
     if !exists {
-        return Err(Error::Error(color_eyre::eyre::eyre!(
-            "Title not found in local library"
-        )));
+        return Err(StatusCode::NOT_FOUND);
     }
 
     // Then get the title info
     let config = crate::config::config();
     let lang_code = config.backend_config.get_locale_string();
     let title = crate::titledb::Title::get_from_title_id(&lang_code, &title_id_param)
-        .await?
-        .ok_or_else(|| Error::Error(color_eyre::eyre::eyre!("Title not found in database")))?;
-    Ok(Json(title))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(title).into_response())
 }
 
 pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
