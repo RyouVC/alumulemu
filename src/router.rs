@@ -797,9 +797,28 @@ async fn serve_static_file(path: String) -> impl IntoResponse {
     match tokio::fs::read(&path).await {
         Ok(contents) => {
             let content_type = get_content_type(&path);
+
+            // Determine appropriate cache duration based on file type
+            let cache_control = if path.ends_with(".html") {
+                // Don't cache HTML files as aggressively
+                "public, max-age=3600" // 1 hour
+            } else if path.contains("/static/")
+                && (path.contains(".js") || path.contains(".css"))
+                && path.contains(".")
+            {
+                // For hashed static assets (typically contain hash in filename)
+                "public, max-age=31536000, immutable" // 1 year
+            } else {
+                // Default for other static assets
+                "public, max-age=86400" // 1 day
+            };
+
             (
                 StatusCode::OK,
-                [(header::CONTENT_TYPE, content_type.as_str())],
+                [
+                    (header::CONTENT_TYPE, content_type.as_str()),
+                    (header::CACHE_CONTROL, cache_control),
+                ],
                 contents,
             )
                 .into_response()
@@ -841,5 +860,5 @@ pub fn create_router() -> Router {
         // user things
         .nest("/api", user_router())
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
-    .layer(middleware::from_fn(basic_auth_if_public))
+        .layer(middleware::from_fn(basic_auth_if_public))
 }
