@@ -1,4 +1,3 @@
-use crate::backend::user::basic_auth;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
 use crate::db::create_precomputed_metaview;
@@ -7,9 +6,8 @@ use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
 use crate::util::format_game_name;
-use axum::middleware::{self};
 use axum::{
-    BoxError, Json, Router,
+    Json, Router,
     extract::Path as HttpPath,
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
@@ -17,10 +15,6 @@ use axum::{
 };
 
 use tokio_util::io::ReaderStream;
-// #[derive(Debug, serde::Serialize, serde::Deserialize)]
-// pub struct ErrorResponse {
-//     pub failure: String,
-// }
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

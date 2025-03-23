@@ -1,4 +1,3 @@
-use crate::nst::{get_title_id_and_version, parse_cnmt_output, run_nstool};
 use crate::{db::DB, db::NspMetadata};
 use color_eyre::Result;
 use regex::Regex;
@@ -15,6 +14,7 @@ use surrealdb::sql::Thing;
 /// if tag contains exactly 16 characters it's a titleid, if it starts with a `v` (lowercase v) it's a version
 /// assume last tag is region
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct GameFileDataNaive {
     pub name: String,
     pub title_id: Option<String>,
@@ -502,16 +502,16 @@ impl TitleDBImport {
         Ok(())
     }
 
-    pub fn from_json_reader<R: std::io::Read>(reader: R) -> Result<Self, serde_json::Error> {
-        serde_json::from_reader(reader)
-    }
+    // pub fn from_json_reader<R: std::io::Read>(reader: R) -> Result<Self, serde_json::Error> {
+    //     serde_json::from_reader(reader)
+    // }
 
-    // db is the database suffix, (i.e "US-en" or "US-es")
-    pub async fn import_to_db_sync(self, sfx: &str) -> Result<()> {
-        for (_nsu_id, title) in self.titles {
-            import_entry_to_db(title, &sfx).await?
-        }
+    // // db is the database suffix, (i.e "US-en" or "US-es")
+    // pub async fn import_to_db_sync(self, sfx: &str) -> Result<()> {
+    //     for (_nsu_id, title) in self.titles {
+    //         import_entry_to_db(title, &sfx).await?
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }

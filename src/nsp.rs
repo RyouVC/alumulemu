@@ -4,7 +4,6 @@ use nx_archive::{
 };
 use once_cell::sync::Lazy;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::str;
 

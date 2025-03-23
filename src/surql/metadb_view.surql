@@ -12,4 +12,3 @@ DEFINE TABLE IF NOT EXISTS metaview_%LOCALE% TYPE NORMAL AS
             title_id = $parent.titleId
             OR ids CONTAINS $parent.titleId
     )
-    GROUP BY title_id;
