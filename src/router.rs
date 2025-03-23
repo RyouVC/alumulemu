@@ -22,6 +22,7 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use http::Request;
 use serde::{Deserialize, Serialize};
+use tokio_util::bytes;
 use tokio_util::io::ReaderStream;
 // #[derive(Debug, serde::Serialize, serde::Deserialize)]
 // pub struct ErrorResponse {
@@ -370,17 +371,13 @@ pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
 
 pub fn admin_router() -> Router {
     Router::new()
-        .route(
-            "/",
-            get(|| async {
-                match std::fs::read_to_string("alu-panel/dist/index.html") {
-                    Ok(contents) => Html(contents).into_response(),
-                    Err(_) => StatusCode::NOT_FOUND.into_response(),
-                }
-            }),
-        )
         .route("/rescan", post(rescan_games))
-        .fallback_service(ServeDir::new("alu-panel/dist"))
+        .fallback(|| async {
+            match std::fs::read_to_string("alu-panel/dist/index.html") {
+                Ok(contents) => Html(contents).into_response(),
+                Err(_) => StatusCode::NOT_FOUND.into_response(),
+            }
+        })
         .layer(middleware::from_fn(basic_auth))
 }
 
@@ -393,9 +390,54 @@ pub fn api_router() -> Router {
     // .layer(middleware::from_fn(basic_auth))
 }
 
+async fn serve_static_file(path: String) -> impl IntoResponse {
+    match std::fs::read(&path) {
+        Ok(contents) => {
+            let content_type = match path.split('.').last() {
+                Some("css") => "text/css",
+                Some("js") => "application/javascript",
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("svg") => "image/svg+xml",
+                Some("ico") => "image/x-icon",
+                Some("woff") => "font/woff",
+                Some("woff2") => "font/woff2",
+                Some("ttf") => "font/ttf",
+                Some("eot") => "application/vnd.ms-fontobject",
+                Some("otf") => "font/otf",
+                _ => "application/octet-stream",
+            };
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, content_type)],
+                contents,
+            )
+                .into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+pub fn static_router() -> Router {
+    Router::new()
+        .route(
+            "/static/{*path}",
+            get(|path: HttpPath<String>| async move {
+                serve_static_file(format!("alu-panel/dist/static/{}", path.0)).await
+            }),
+        )
+        .route(
+            "/favicon.ico",
+            get(|| async { serve_static_file("alu-panel/dist/favicon.ico".to_string()).await }),
+        )
+        .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+}
+
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(list_files))
+        // add static router
+        .merge(static_router())
         .route("/api/get_game/{title_id}", get(download_file))
         // web ui
         .nest("/admin", admin_router())
