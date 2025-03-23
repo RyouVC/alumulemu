@@ -1,30 +1,19 @@
 use crate::backend::user::basic_auth;
 use crate::backend::user::user_router;
-// use crate::db::scan_games_path;
-use crate::db::DB;
 use crate::db::NspMetadata;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
-use tower_http::services::ServeDir;
 
 use crate::titledb::GameFileDataNaive;
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordVerifier},
-};
-use axum::middleware::{self, Next};
+use axum::middleware::{self};
 use axum::{
     BoxError, Json, Router,
-    body::Body,
-    extract::{Path as HttpPath, Query},
+    extract::Path as HttpPath,
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{get, post},
 };
 
-use http::Request;
-use serde::{Deserialize, Serialize};
-use tokio_util::bytes;
 use tokio_util::io::ReaderStream;
 // #[derive(Debug, serde::Serialize, serde::Deserialize)]
 // pub struct ErrorResponse {
