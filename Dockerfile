@@ -1,4 +1,4 @@
-FROM debian:bookworm AS builder
+FROM debian:bookworm AS base
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/*
+
+FROM base AS build
 
 # Get rustup and install the stable toolchain
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -30,6 +32,11 @@ WORKDIR /app
 # Build the project
 RUN cargo build --release
 
+FROM base AS runtime
+
+COPY --from=build /app/target/release/alumulemu /app/alumulemu
+COPY --from=build /app/alu-panel/dist /app/alu-panel/dist
+WORKDIR /app
 
 ENV ALU_ROM_DIR=/roms
 ENV ALU_DATABASE_URL="rocksdb:///data"
@@ -39,6 +46,9 @@ ENV ALU_PRIMARY_LANGUAGE="en"
 ENV ALU_PROD_KEYS="/keys/prod.keys"
 ENV ALU_TITLE_KEYS="/keys/title.keys"
 ENV ALU_HOST="0.0.0.0:3000"
+
+
+EXPOSE 3000
 
 CMD ["./target/release/alumulemu"]
 
