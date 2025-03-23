@@ -1,5 +1,6 @@
 <template>
     <div class="games-list">
+        <button @click="rescanGames" class="rescan-button">Rescan Games</button>
         <div v-for="game in games" :key="game.url" class="game-item">
             <h3>{{ getGameTitle(game.url) }}</h3>
             <p>Size: {{ (game.size / (1024 * 1024)).toFixed(2) }} MB</p>
@@ -23,6 +24,43 @@ const getGameTitle = (url) => {
 const getGameTitleId = (url) => {
     const titleIdMatch = url.match(/\[(.*?)\]/);
     return titleIdMatch ? titleIdMatch[1] : "";
+};
+
+const rescanGames = async () => {
+    try {
+        const response = await fetch("/admin/rescan", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error("Rescan failed");
+        }
+        await loadGames();
+    } catch (error) {
+        console.log(
+            "%c YOUR ADMIN PANEL SUCKS",
+            `
+        font-weight: bold;
+        font-size: 20px;
+        background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow:
+          1px 1px 0 #ff0000,
+          2px 2px 0 #ff7f00,
+          3px 3px 0 #ffff00,
+          4px 4px 0 #00ff00,
+          5px 5px 0 #0000ff,
+          6px 6px 0 #4b0082,
+          7px 7px 0 #8f00ff;
+      `,
+        );
+        console.error("Error:", error);
+    }
 };
 
 const loadGames = async () => {
