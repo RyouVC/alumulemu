@@ -469,14 +469,6 @@ pub async fn title_meta(
     HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::trace!("Getting title metadata for {}", title_id_param);
-    // // First check if we have this game in our metadata
-    // let all_metadata = NspMetadata::get_all()
-    //     .await
-    //     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // let exists = all_metadata.iter().any(|m| m.title_id == title_id_param);
-    // if !exists {
-    //     return Err(StatusCode::NOT_FOUND);
-    // }
 
     // Then get the title info from metaview cache
     let title = crate::titledb::Title::get_from_metaview_cache(&title_id_param)
