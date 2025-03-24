@@ -13,7 +13,7 @@ SELECT
         -- Original condition
         titleId = $parent.title_id
         OR ids CONTAINS $parent.title_id
-        
+
         -- New condition for 800 -> 000 replacement
         OR (
             $parent.title_id AND
@@ -33,6 +33,8 @@ DEFINE FIELD path ON nsp_metadata TYPE string PERMISSIONS FULL;
 DEFINE FIELD title_id ON nsp_metadata TYPE string PERMISSIONS FULL;
 
 DEFINE INDEX IF NOT EXISTS metaview_idx_%LOCALE%
-    ON TABLE metaview_%LOCALE% 
+    ON TABLE metaview_%LOCALE%
     FIELDS title_name
     SEARCH ANALYZER alu_search BM25;
+
+REBUILD INDEX metaview_idx_%LOCALE% ON TABLE metaview_%LOCALE%;
