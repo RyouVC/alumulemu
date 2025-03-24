@@ -15,3 +15,5 @@ users_database/
 !.env.example
 alu-panel/dist/
 *.bak
+titledb_cache/
+docker-compose.yml

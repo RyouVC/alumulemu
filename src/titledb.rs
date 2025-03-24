@@ -1,8 +1,8 @@
-use crate::{db::DB, db::NspMetadata};
+use crate::db::{DB, NspMetadata, create_precomputed_metaview};
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 use struson::reader::{JsonReader, JsonStreamReader};
 use surrealdb::sql::Thing;
 /// Represents a naive game data type, parsed with regex
@@ -176,6 +176,51 @@ where
         StringOrU64::String(s) => s,
         StringOrU64::U64(n) => n.to_string(),
     }))
+}
+
+// HACK: Some really cursed metaview fuckery to get metaviews working
+// todo: maybe get surrealdb to support this natively
+/// An entry for the metaview cache, created by the schema using a precomputed view
+/// comparing the title ID of the NspMetadata with the title ID of titledb
+#[derive(Debug, Deserialize)]
+pub struct Metaview {
+    pub title: Option<Title>,
+}
+
+impl Metaview {
+    pub async fn get_from_title_id(title_id: &str, locale: &str) -> Result<Option<Self>> {
+        let query = format!("SELECT * FROM metaview_{locale} WHERE title.titleId = $tid");
+        let mut query = DB.query(query).bind(("tid", title_id.to_string())).await?;
+        let data: Option<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_base_games(locale: &str) -> Result<Vec<Self>> {
+        let query = format!(
+            "SELECT * FROM metaview_{locale} WHERE title.titleId AND string::ends_with(title.titleId, '000')"
+        );
+        let mut query = DB.query(query).await?;
+        let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_updates(locale: &str) -> Result<Vec<Self>> {
+        let query = format!(
+            "SELECT * FROM metaview_{locale} WHERE title.titleId AND string::ends_with(title.titleId, '800')"
+        );
+        let mut query = DB.query(query).await?;
+        let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_dlc(locale: &str) -> Result<Vec<Self>> {
+        let query = format!(
+            "SELECT * FROM metaview_{locale} WHERE title.titleId AND not string::ends_with(title.titleId, '000') AND not string::ends_with(title.titleId, '800')"
+        );
+        let mut query = DB.query(query).await?;
+        let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -412,16 +457,16 @@ impl Title {
         let title_id_query = if is_update {
             tracing::trace!("Fetching base game metadata for update");
             title_id.replace("800", "000")
-            
         } else {
             title_id.to_string()
         };
 
         tracing::trace!("Fetching title metadata for {title_id_query}");
 
-        let query = format!("SELECT * FROM metaview_{locale} WHERE titleId = $tid");
+        let query = format!("SELECT * FROM metaview_{locale} WHERE title.titleId = $tid");
         let mut query = DB.query(query).bind(("tid", title_id_query)).await?;
-        let mut data: Option<Self> = query.take(0)?;
+        let data: Option<Metaview> = query.take(0)?;
+        let mut data = data.and_then(|r| r.title);
 
         if is_update {
             if let Some(title) = data.as_mut() {
@@ -437,50 +482,48 @@ impl Title {
     }
 }
 
-#[tracing::instrument(skip(title), fields(title_id = title.title_id.clone(), nsuid = title.nsu_id.unwrap_or_default()))]
-async fn import_entry_to_db(title: TitleDbEntry, db_sfx: &str) -> Result<()> {
-    let table_name = format!("titles_{}", db_sfx);
+#[tracing::instrument(skip(title), fields(
+    title_id = title.title_id.clone(),
+    nsuid = title.nsu_id.unwrap_or_default(),
+    locale,
+))]
+async fn import_entry_to_db(title: TitleDbEntry, locale: &str) -> Result<()> {
+    let table_name = format!("titles_{}", locale);
     let nsuid = title.nsu_id.unwrap_or_default();
-    let name = title.name.clone();
-    let title_id = title.title_id.clone();
-    let nsuid_str = nsuid.to_string(); // Convert u64 to String
+    let nsuid_str = nsuid.to_string(); // Convert u64 to String because surrealdb doesnt like numbered indexes
     let _ent: Option<Title> = DB.upsert((&table_name, &nsuid_str)).content(title).await?;
 
-    tracing::trace!(
-        "Imported title: {name:?} ([{tid:?}]) ({nsuid:?})",
-        name = name,
-        tid = title_id,
-        nsuid = nsuid
-    );
+    tracing::trace!("Title imported");
 
     Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TitleDBImport {
-    #[serde(flatten)]
-    titles: BTreeMap<String, TitleDbEntry>,
+    // #[serde(flatten)]
+    // titles: BTreeMap<String, TitleDbEntry>,
 }
 
 impl TitleDBImport {
-    pub fn new() -> Self {
-        TitleDBImport {
-            titles: BTreeMap::new(),
-        }
-    }
+    // pub fn new() -> Self {
+    //     TitleDBImport {
+    //         titles: BTreeMap::new(),
+    //     }
+    // }
 
     #[tracing::instrument(skip(reader))]
     pub async fn from_json_reader_streaming<R: std::io::Read>(
         reader: R,
-        db_sfx: &str,
-    ) -> Result<(), serde_json::Error> {
-        tracing::info!("Importing TitleDB data for {db_sfx} (Streamed)");
-        let mut db = Self::new();
-        let mut reader = JsonStreamReader::new(reader);
+        locale: &str,
+    ) -> color_eyre::Result<()> {
+        tracing::info!("Importing TitleDB data for {locale} (Streamed)");
 
-        // let a = stream_reader.next_string_reader();
-        // let s = stream_reader.next_string().unwrap();
-        // tracing::info!("Read string: {}", s);
+        // Create schema for table
+        let schema = include_str!("surql/titledb.surql").replace("%LOCALE%", locale);
+        let _q = DB.query(schema).await?;
+        create_precomputed_metaview(locale).await?;
+
+        let mut reader = JsonStreamReader::new(reader);
 
         reader.begin_object().unwrap();
 
@@ -493,15 +536,15 @@ impl TitleDBImport {
             let entry: TitleDbEntry = reader.deserialize_next().unwrap();
             // tracing::info!("Read key: {:#?}", entry);
             //
-            let nsuid = entry.nsu_id.unwrap_or_default();
-            import_entry_to_db(entry.clone(), db_sfx).await.unwrap();
+            // let nsuid = entry.nsu_id.unwrap_or_default();
+            import_entry_to_db(entry.clone(), locale).await.unwrap();
 
-            db.titles.insert(nsuid.to_string(), entry);
+            // db.titles.insert(nsuid.to_string(), entry);
         }
 
         reader.end_object().unwrap();
 
-        tracing::info!("Successfully imported TitleDB data for {db_sfx}");
+        tracing::info!("Successfully imported TitleDB data for {locale}");
         Ok(())
     }
 

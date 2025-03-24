@@ -21,6 +21,18 @@ Alumulemu exports the repository as a [Tinfoil index](https://blawar.github.io/t
 - Web interface: Alumulemu provides a web interface for managing the server and viewing package metadata. The web interface is built using [Vue.js](https://vuejs.org/) and [Tailwind CSS](https://tailwindcss.com/).
 - **REST API**: Alumulemu provides a REST API for managing the repository and querying package metadata. Documentation for the API will be available in the future.
 
+## Planned features
+
+- Merging/proxying other Tinfoil repositories, allowing alumulemu to act as a central repository for multiple upstream repositories.
+  - Merging with non-HTTP or file-based sources, such as Google Drive, 1fichier, or other sources.
+  - Caching upstream repositories for faster access
+- Encryption support, as seen in [Tinfoil DRM specification](https://blawar.github.io/tinfoil/drm/).
+- Custom metadata editing and management by title ID
+- Tinfoil Theme repository support
+  - Blacklist/whitelist for specific themes
+  - Optional MOTD support (Currently disabled explicitly in alumulemu)
+- RBAC support for the web interface and API.
+
 ## "Alumulemu"? What??
 
 The name "Alumulemu" is a mispronunciation of "Aluminium", spoken with a thick Chinese accent. It initially stemmed from a series of ads for a [Chinese
@@ -50,7 +62,7 @@ You will require:
 
 Alumulemu is configured using environment variables. The following environment variables are required:
 
-- `ALU_DATABASE_URL`: The URL of the SurrealDB instance to use. If not set, Alumulemu will use the RocksDB backend mounted at `/data` in the container, or the `database` directory in the working directory if running from source. (`rocksdb:///data` or `rocksdb://database` respectively)
+- `ALU_DATABASE_URL`: The URL of the SurrealDB instance to use. If not set, Alumulemu will use the RocksDB backend mounted at `/data` in the container, or the `database` directory in the working directory if running from source. (`surrealkv:///data` or `surrealkv://database` respectively)
   - `ALU_DATABASE_AUTH_METHOD`: The authentication method for the SurrealDB instance (optional). By default it will assume no authentication is required, used for embedded instances. Available options are `none`, `root` (todo: implement namespace auth).
     - `ALU_SURREAL_ROOT_USERNAME`: The username to use for the root user (optional). Required if `ALU_DATABASE_AUTH_METHOD` is set to `root`.
     - `ALU_SURREAL_ROOT_PASSWORD`: The password to use for the root user (optional). Required if `ALU_DATABASE_AUTH_METHOD` is set to `root`.
@@ -70,6 +82,18 @@ The region and language code is combined to form the locale code used to query t
 - `ALU_HOST`: The host to bind the server to. Defaults to `0.0.0.0:3000`.
 - `ALU_TITLE_DB_CACHE_DIR`: The directory to cache title database files in. Defaults to `.` (current working directory) or `/var/cache/titledb` if running in a container.
 - `ALU_PUBLIC`: Whether to run the server in public mode. Defaults to `false`. If set to `true`, the server will not require authentication to access the API. However administrative endpoints will still require authentication if there are users in the database.
+
+#### Optimizing database performance
+
+You may switch to a different SurrealDB backend for better performance. The following backends are available for SurrealDB:
+
+- `surrealkv`: The default backend, using [SurrealKV](https://surrealdb.com/docs/surrealkv) for key-value storage. This is the fastest local backend, but may be less reliable. It's set as default due to its speed.
+- `rocksdb`: The RocksDB backend, using [RocksDB](https://rocksdb.org/) for key-value storage. This is the most reliable backend, but may be slower than SurrealKV. It's recommended to use this backend for production environments.
+- `tikv`: The TiKV backend, using [TiKV](https://tikv.org/) for distributed key-value storage. This is the most scalable backend, but may be slower depending on your network configuration. It's recommended to use this backend for large-scale deployments, such as multi-node clusters.
+
+You may also connect to an external SurrealDB instance using WebSockets.
+
+To set the database path, set the `ALU_DATABASE_URL` environment variable to the appropriate URL. For example, to use the RocksDB backend, set `ALU_DATABASE_URL` to `rocksdb:///data`, `surrealkv:///data` for SurrealKV, or `ws://localhost:8000` for an external instance.
 
 ### Running
 
