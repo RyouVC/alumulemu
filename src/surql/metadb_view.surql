@@ -8,7 +8,7 @@
 DEFINE TABLE IF NOT EXISTS metaview_%LOCALE% TYPE NORMAL AS
 SELECT
     (SELECT * FROM titles_%LOCALE%
-     WITH INDEX titleIdIndexAll_%LOCALE%
+     WITH INDEX titleIdIndexAll_%LOCALE%, titleIdIndex_%LOCALE%, idsIndex_%LOCALE%
      WHERE
         -- Original condition
         titleId = $parent.title_id

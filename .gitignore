@@ -16,3 +16,4 @@ users_database/
 alu-panel/dist/
 *.bak
 titledb_cache/
+docker-compose.yml

@@ -14,7 +14,7 @@ pub enum DatabaseAuthMethod {
 
 #[derive(Parser, Debug, Clone)]
 pub struct DatabaseConfig {
-    #[clap(env = "ALU_DATABASE_URL", default_value = "rocksdb://./database")]
+    #[clap(env = "ALU_DATABASE_URL", default_value = "surrealkv://./database")]
     pub database_url: String,
 
     #[clap(env = "ALU_DATABASE_AUTH_METHOD", value_enum, default_value = "none")]
