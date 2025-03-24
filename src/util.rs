@@ -53,3 +53,11 @@ pub fn format_game_name(metadata: &NspMetadata, filename: &str, extension: &str)
         name, metadata.title_id, version, extension
     )
 }
+
+/// Creates a download ID for a game based on the title ID, extension and version information
+// example: 010005501E68C000_v65536.xci
+pub fn format_download_id(title_id: &str, version: &str, ext: &str) -> String {
+    let version = version.strip_prefix('v').unwrap_or(version);
+    format!("{}_v{}.{}", title_id, version, ext)
+}
+

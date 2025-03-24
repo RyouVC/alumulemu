@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
@@ -5,6 +7,8 @@ use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
+use crate::titledb::Metaview;
+use crate::util::format_download_id;
 use crate::util::format_game_name;
 use axum::extract::Query;
 use axum::middleware;
@@ -34,13 +38,20 @@ impl IntoResponse for Error {
 
 type AlumRes<T> = Result<T, Error>;
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+pub struct RescanOptions {
+    #[serde(default)]
+    pub rescan: bool,
+}
+
 #[tracing::instrument]
-pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Result<()> {
+pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions) -> color_eyre::eyre::Result<()> {
     tracing::info!("Starting full metadata rescan of {}", path);
 
-    // Get all existing metadata and wrap in Arc for thread-safe sharing
-    let all_metadata =
-        std::sync::Arc::new(NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new()));
+    let rescan = options.rescan;
+
+    // Get all existing metadata
+    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
 
     // Create a lookup map for faster metadata lookups
     let metadata_map: std::collections::HashMap<String, &NspMetadata> =
@@ -51,9 +62,6 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
 
     // Track which files we've seen during this scan
     let mut found_paths = std::collections::HashSet::new();
-
-    // Prepare batches for DB operations
-    let mut metadata_to_save = Vec::with_capacity(100);
 
     // Walk the directory and process each file
     let walker = jwalk::WalkDir::new(path)
@@ -71,10 +79,6 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
             });
         });
 
-    // Process files in parallel with bounded concurrency
-    let mut tasks = Vec::new();
-    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(8)); // Limit to 8 concurrent operations
-
     for entry in walker.into_iter() {
         let path = entry.map_err(|e| Error::Error(color_eyre::eyre::eyre!(e.to_string())))?;
         let file_path = path.path();
@@ -91,131 +95,28 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
         let file_path_str = file_path.to_string_lossy().to_string();
         found_paths.insert(file_path_str.clone());
 
-        // Check if we already have metadata that's recent enough (could add timestamp checks here)
-        let needs_update = !metadata_map.contains_key(&file_path_str);
+        // Check if we need to update this file
+        // Force rescan if the rescan option is true, otherwise only scan if no metadata exists
+        let needs_update = rescan || !metadata_map.contains_key(&file_path_str);
 
         if needs_update {
-            // Log that we're updating this path
-            tracing::info!("Updating metadata for file: {}", file_path_str);
-
-            let all_metadata_clone = all_metadata.clone();
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
-            let task = tokio::spawn(async move {
-                let _permit = permit; // Keep permit alive for the duration of this task
-                const MAX_RETRIES: usize = 3;
-                const RETRY_DELAY_MS: u64 = 500;
-
-                tracing::debug!("Processing file: {}", file_path_str);
-
-                let mut attempt = 0;
-                loop {
-                    attempt += 1;
-                    match GameFileDataNaive::get(&file_path, &all_metadata_clone).await {
-                        Ok(game_data) => {
-                            let title_id = game_data
-                                .title_id
-                                .unwrap_or_else(|| "00000000AAAA0000".to_string());
-
-                            // Get the title name from metadata or filename
-                            let title_name = all_metadata_clone
-                                .iter()
-                                .find(|m| m.path == file_path_str)
-                                .and_then(|m| m.title_name.clone())
-                                .unwrap_or_else(|| {
-                                    game_data.name.trim().trim_end_matches(".nsp").to_string()
-                                });
-
-                            return Some(NspMetadata {
-                                path: file_path_str,
-                                title_id,
-                                version: game_data.version.unwrap_or_else(|| "v0".to_string()),
-                                title_name: Some(title_name),
-                            });
-                        }
-                        Err(e) => {
-                            if e.to_string().contains("This transaction can be retried")
-                                && attempt < MAX_RETRIES
-                            {
-                                tracing::info!(
-                                    "Retryable error on attempt {}/{} for {}: {}. Retrying...",
-                                    attempt,
-                                    MAX_RETRIES,
-                                    file_path_str,
-                                    e
-                                );
-                                tokio::time::sleep(tokio::time::Duration::from_millis(
-                                    RETRY_DELAY_MS,
-                                ))
-                                .await;
-                                continue;
-                            }
-
-                            tracing::warn!(
-                                "Failed to get game data for {} after {} attempt(s): {}",
-                                file_path_str,
-                                attempt,
-                                e
-                            );
-                            return None;
-                        }
-                    }
-                }
-            });
-            tasks.push(task);
-
-            // Process in batches to avoid using too much memory
-            if tasks.len() >= 20 {
-                metadata_to_save.extend(
-                    (futures::future::join_all(tasks).await)
-                        .into_iter()
-                        .flatten()
-                        .flatten(),
-                );
-                tasks = Vec::new();
-
-                // Save batch to DB
-                if !metadata_to_save.is_empty() {
-                    for metadata in metadata_to_save.drain(..) {
-                        if let Err(e) = metadata.save().await {
-                            tracing::warn!("Failed to save metadata: {}", e);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Process remaining tasks
-    // Process remaining tasks and save their results directly
-    if !tasks.is_empty() {
-        for metadata in (futures::future::join_all(tasks).await)
-            .into_iter()
-            .flatten()
-            .flatten()
-        {
-            if let Err(e) = metadata.save().await {
-                tracing::warn!("Failed to save metadata: {}", e);
+            // Use the dedicated scan_file function instead of duplicating code
+            if let Err(e) = scan_file(&file_path, rescan).await {
+                tracing::warn!("Failed to scan file {}: {}", file_path_str, e);
             }
         }
     }
 
     // Delete metadata for files that no longer exist
-    let delete_futures: Vec<_> = all_metadata
-        .iter()
-        .filter(|metadata| !found_paths.contains(&metadata.path))
-        .map(|metadata| async move {
-            tracing::info!("Removing metadata for non-existent file: {}", metadata.path);
-            if let Err(e) = metadata.delete().await {
-                tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
-                0
-            } else {
-                1
-            }
-        })
-        .collect();
-
-    let deleted_results = futures::future::join_all(delete_futures).await;
-    let deleted_count: usize = deleted_results.iter().sum();
+    let mut deleted_count = 0;
+    for metadata in all_metadata.iter().filter(|m| !found_paths.contains(&m.path)) {
+        tracing::info!("Removing metadata for non-existent file: {}", metadata.path);
+        if let Err(e) = metadata.delete().await {
+            tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
+        } else {
+            deleted_count += 1;
+        }
+    }
 
     tracing::info!(
         "Metadata rescan complete. Found {} files, removed {} stale entries.",
@@ -223,6 +124,95 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
         deleted_count
     );
 
+    Ok(())
+}
+
+pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()> {
+    tracing::info!("Scanning file: {}", path.display());
+
+    // Get all existing metadata
+    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+
+    let file_path_str = path.to_string_lossy().to_string();
+
+    // Log that we're updating this path
+    tracing::info!("Updating metadata for file: {}", file_path_str);
+
+    const MAX_RETRIES: usize = 3;
+    const RETRY_DELAY_MS: u64 = 500;
+
+    tracing::debug!("Processing file: {}", file_path_str);
+
+    let mut attempt = 0;
+    let metadata_result = loop {
+        attempt += 1;
+        let naive = {
+            if rescan_files {
+                GameFileDataNaive::get(path).await
+            } else {
+                GameFileDataNaive::get_cached(path, &all_metadata).await
+            }
+        };
+        match naive {
+            Ok(game_data) => {
+                let title_id = game_data
+                    .title_id
+                    .unwrap_or_else(|| "00000000AAAA0000".to_string());
+
+                // Get the title name from metadata or filename
+                let title_name = all_metadata
+                    .iter()
+                    .find(|m| m.path == file_path_str)
+                    .and_then(|m| m.title_name.clone())
+                    .unwrap_or_else(|| {
+                        game_data.name.trim().trim_end_matches(".nsp").to_string()
+                    });
+
+                let version = game_data.version.unwrap_or_else(|| "v0".to_string());
+                let extension = game_data.extension.unwrap_or_default();
+                let download_id = format_download_id(&title_id, &version, &extension);
+                break Some(NspMetadata {
+                    path: file_path_str.clone(),
+                    title_id,
+                    version,
+                    title_name: Some(title_name),
+                    download_id,
+                });
+            }
+            Err(e) => {
+                if e.to_string().contains("This transaction can be retried")
+                    && attempt < MAX_RETRIES
+                {
+                    tracing::info!(
+                        "Retryable error on attempt {}/{} for {}: {}. Retrying...",
+                        attempt,
+                        MAX_RETRIES,
+                        file_path_str,
+                        e
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        RETRY_DELAY_MS,
+                    ))
+                    .await;
+                    continue;
+                }
+
+                tracing::warn!(
+                    "Failed to get game data for {} after {} attempt(s): {}",
+                    file_path_str,
+                    attempt,
+                    e
+                );
+                break None;
+            }
+        }
+    };
+
+    if let Some(metadata) = metadata_result {
+        if let Err(e) = metadata.save().await {
+            tracing::warn!("Failed to save metadata: {}", e);
+        }
+    }
     Ok(())
 }
 
@@ -268,6 +258,7 @@ pub async fn watch_filesystem_for_changes(path: &str) -> color_eyre::eyre::Resul
     Ok(())
 }
 
+// todo: refactor stuff into a single function
 async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, _path: &str) {
     use notify::EventKind;
 
@@ -302,7 +293,7 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
                 );
 
                 // Process the new/modified file
-                match GameFileDataNaive::get(event_path, &all_metadata).await {
+                match GameFileDataNaive::get_cached(event_path, &all_metadata).await {
                     Ok(game_data) => {
                         let title_id = game_data
                             .title_id
@@ -316,13 +307,18 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
                             .unwrap_or_else(|| {
                                 game_data.name.trim().trim_end_matches(".nsp").to_string()
                             });
+                        
+                        let extension = game_data.extension.unwrap_or_default();
+                        let version = game_data.version.unwrap_or_else(|| "v0".to_string());
+                        let download_id = format_download_id(&title_id, &version, &extension);
 
                         // Save the metadata
                         let metadata = NspMetadata {
                             path: path_str,
                             title_id,
-                            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
+                            version,
                             title_name: Some(title_name),
+                            download_id,
                         };
 
                         if let Err(e) = metadata.save().await {
@@ -393,16 +389,16 @@ pub async fn list_files() -> AlumRes<Json<Index>> {
 }
 
 pub async fn download_file(
-    HttpPath(title_id_param): HttpPath<String>,
+    HttpPath(download_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // Block any path traversal attempts
-    if title_id_param.contains("..")
-        || title_id_param.contains('/')
-        || title_id_param.contains('\\')
+    if download_id_param.contains("..")
+        || download_id_param.contains('/')
+        || download_id_param.contains('\\')
     {
         tracing::warn!(
-            "Path traversal attempt detected in title ID: {}",
-            title_id_param
+            "Path traversal attempt detected in download ID: {}",
+            download_id_param
         );
         return Ok(Json(TinfoilResponse::Failure(
             "path traversal not allowed for this request".to_string(),
@@ -410,205 +406,19 @@ pub async fn download_file(
         .into_response());
     }
 
-    tracing::debug!("Looking for title ID: {}", title_id_param);
+    tracing::debug!("Looking for download ID: {}", download_id_param);
 
-    let all_metadata = NspMetadata::get_all()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let all_metadata = NspMetadata::get_from_download_id(&download_id_param).await.map_err(|err| {
+        tracing::error!("Failed to retrieve metadata for download ID {}: {}", download_id_param, err);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
-    tracing::debug!("Found {} metadata entries", all_metadata.len());
-
-    // Parse parameters: Check for both version (_v) and file extension (.)
-    let (base_title_id, version_filter, extension_filter) =
-        if let Some(dot_pos) = title_id_param.rfind('.') {
-            // We have an extension
-            let (base_with_maybe_version, ext) = title_id_param.split_at(dot_pos);
-            let extension = ext.trim_start_matches('.');
-
-            // Check if we also have a version
-            if let Some(v_pos) = base_with_maybe_version.find("_v") {
-                let (base, version_part) = base_with_maybe_version.split_at(v_pos);
-                let version = version_part.trim_start_matches("_v");
-                let version_num = version.parse::<i32>().ok();
-
-                (base.to_string(), version_num, Some(extension.to_string()))
-            } else {
-                // Just extension, no version
-                (
-                    base_with_maybe_version.to_string(),
-                    None,
-                    Some(extension.to_string()),
-                )
-            }
-        } else if let Some(v_pos) = title_id_param.find("_v") {
-            // Just version, no extension
-            let (base, version_part) = title_id_param.split_at(v_pos);
-            let version = version_part.trim_start_matches("_v");
-            let version_num = version.parse::<i32>().ok();
-
-            (base.to_string(), version_num, None)
-        } else {
-            // No version or extension specified
-            (title_id_param, None, None)
-        };
-
-    // Debug print all title IDs
-    for metadata in all_metadata.iter() {
-        tracing::debug!(
-            "DB title ID: {}, version: {}, path: {}",
-            metadata.title_id,
-            metadata.version,
-            metadata.path
-        );
-    }
-
-    // Filter metadata by title_id
-    let matching_metadata: Vec<_> = all_metadata
-        .iter()
-        .filter(|m| m.title_id == base_title_id)
-        .collect();
-
-    if matching_metadata.is_empty() {
-        tracing::error!("No matching title ID {} found", base_title_id);
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Apply filters to get the file path - but now we need to keep the metadata too
-    let metadata_entry = match (version_filter, extension_filter) {
-        (Some(v), Some(ext)) => {
-            // Both version and extension specified
-            matching_metadata
-                .iter()
-                .find(|m| {
-                    // Parse version from metadata
-                    let metadata_version = m
-                        .version
-                        .trim_start_matches('v')
-                        .parse::<i32>()
-                        .unwrap_or(0);
-
-                    // Get extension from path
-                    let metadata_ext = std::path::Path::new(&m.path)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("");
-
-                    metadata_version == v && metadata_ext.eq_ignore_ascii_case(&ext)
-                })
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "No matching title_id {} with version {} and extension {} found",
-                        base_title_id,
-                        v,
-                        ext
-                    );
-                    StatusCode::NOT_FOUND
-                })?
-        }
-        (Some(v), None) => {
-            // Only version specified
-            matching_metadata
-                .iter()
-                .find(|m| {
-                    let metadata_version = m
-                        .version
-                        .trim_start_matches('v')
-                        .parse::<i32>()
-                        .unwrap_or(0);
-
-                    metadata_version == v
-                })
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "No matching title_id {} with version {} found",
-                        base_title_id,
-                        v
-                    );
-                    StatusCode::NOT_FOUND
-                })?
-        }
-        (None, Some(ext)) => {
-            // Only extension specified - get latest version with this extension
-            matching_metadata
-                .iter()
-                .filter(|m| {
-                    let metadata_ext = std::path::Path::new(&m.path)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("");
-
-                    metadata_ext.eq_ignore_ascii_case(&ext)
-                })
-                .max_by_key(|m| {
-                    m.version
-                        .trim_start_matches('v')
-                        .parse::<i32>()
-                        .unwrap_or(0)
-                })
-                .ok_or_else(|| {
-                    tracing::error!(
-                        "No matching title_id {} with extension {} found",
-                        base_title_id,
-                        ext
-                    );
-                    StatusCode::NOT_FOUND
-                })?
-        }
-        (None, None) => {
-            // No filters - first try to get latest version in NSP format
-            let nsp_metadata: Vec<_> = matching_metadata
-                .iter()
-                .filter(|m| {
-                    let metadata_ext = std::path::Path::new(&m.path)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("");
-
-                    metadata_ext.eq_ignore_ascii_case("nsp")
-                })
-                .collect();
-
-            if !nsp_metadata.is_empty() {
-                // We have NSP files - get the latest version
-                nsp_metadata
-                    .iter()
-                    .max_by_key(|m| {
-                        m.version
-                            .trim_start_matches('v')
-                            .parse::<i32>()
-                            .unwrap_or(0)
-                    })
-                    .ok_or_else(|| {
-                        // This shouldn't happen as we just checked nsp_metadata is not empty
-                        tracing::error!(
-                            "Failed to determine latest NSP version for title_id {}",
-                            base_title_id
-                        );
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    })?
-            } else {
-                // No NSP files available - fall back to any format
-                tracing::info!(
-                    "No NSP files found for title_id {}, falling back to any available format",
-                    base_title_id
-                );
-
-                matching_metadata
-                    .iter()
-                    .max_by_key(|m| {
-                        m.version
-                            .trim_start_matches('v')
-                            .parse::<i32>()
-                            .unwrap_or(0)
-                    })
-                    .ok_or_else(|| {
-                        tracing::error!(
-                            "Failed to determine latest version for title_id {}",
-                            base_title_id
-                        );
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    })?
-            }
+    // Check that we found the metadata entry
+    let metadata_entry = match all_metadata {
+        Some(entry) => entry,
+        None => {
+            tracing::error!("No metadata found for download ID: {}", download_id_param);
+            return Err(StatusCode::NOT_FOUND);
         }
     };
 
@@ -630,7 +440,7 @@ pub async fn download_file(
         .unwrap_or("nsp");
 
     // Create a nicely formatted filename for the download
-    let formatted_filename = format_game_name(metadata_entry, &raw_filename, extension);
+    let formatted_filename = format_game_name(&metadata_entry, &raw_filename, extension);
 
     // Sanitize the filename to ensure it's safe for Content-Disposition
     // Replace any characters that might cause issues in headers
@@ -645,7 +455,7 @@ pub async fn download_file(
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", safe_filename),
+            format!("attachment; filename=\"{safe_filename}\""),
         )
         .body(body)
         .unwrap();
@@ -677,6 +487,7 @@ pub async fn title_meta(
     Ok(Json(title).into_response())
 }
 
+/// Get base game of a title
 #[tracing::instrument]
 pub async fn title_meta_base_game(
     HttpPath(title_id_param): HttpPath<String>,
@@ -701,7 +512,14 @@ pub async fn title_meta_base_game(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Json(title).into_response())
+    Ok(Json(title))
+}
+
+
+/// Get all alternate (non-base) versions of a title
+pub async fn get_download_ids(HttpPath(title_id): HttpPath<String>) -> AlumRes<Json<Vec<String>>> {
+    let view = Metaview::get_download_ids(&title_id).await?;
+    Ok(Json(view))
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -765,29 +583,8 @@ pub async fn list_grouped_by_titleid(
 /// List base games only (games that end with 000)
 #[tracing::instrument]
 pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
-    tracing::debug!("Getting list of base games");
-    tracing::debug!("Retrieving all NSP metadata from database");
-    // let nsp_metadata = NspMetadata::get_all()
-    //     .await
-    //     .map_err(|e| {
-    //         tracing::error!("Failed to retrieve NSP metadata: {}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?;
 
-    // tracing::debug!("Found {} total metadata entries", nsp_metadata.len());
-
-    // let mut base_games = Vec::new();
-    // for metadata in nsp_metadata.iter().filter(|m| m.title_id.ends_with("000")) {
-    //     if let Ok(Some(title)) =
-    //         crate::titledb::Title::get_from_metaview_cache(&metadata.title_id).await
-    //     {
-    //         base_games.push(title);
-    //     }
-    // }
-
-    let locale = crate::config::config().backend_config.get_locale_string();
-
-    let base_games = crate::titledb::Metaview::get_base_games(&locale)
+    let base_games = crate::titledb::Metaview::get_base_games()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .into_iter()
@@ -796,9 +593,10 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
 
     Ok(Json(base_games).into_response())
 }
-pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
+
+pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
     tracing::info!("Rescanning games directory");
-    update_metadata_from_filesystem(&games_dir()).await?;
+    update_metadata_from_filesystem(&games_dir(), options.0).await?;
     tracing::info!("Games rescanned successfully");
     // tracing::info!("(re)Creating precomputed metaview");
     // if let Err(e) = create_precomputed_metaview().await {
@@ -923,6 +721,7 @@ pub fn create_router() -> Router {
             "/api/title_meta/{title_id}/base_game",
             get(title_meta_base_game),
         )
+        .route("/api/title_meta/{title_id}/download_ids", get(get_download_ids))
         .route("/api/grouped/{title_id}", get(list_grouped_by_titleid))
         .route("/api/base_games", get(list_base_games))
         .route("/api/base_games/search", get(search_base_game))

@@ -11,6 +11,7 @@ pub struct NspMetadata {
     pub title_id: String,
     pub version: String,
     pub title_name: Option<String>,
+    pub download_id: String,
 }
 
 impl NspMetadata {
@@ -20,6 +21,16 @@ impl NspMetadata {
     #[tracing::instrument(level = "debug")]
     pub async fn get_by_path(path: &str) -> surrealdb::Result<Option<Self>> {
         DB.select(("nsp_metadata", path)).await
+    }
+    
+    #[tracing::instrument(level = "debug")]
+    pub async fn get_from_download_id(download_id: &str) -> surrealdb::Result<Option<Self>> {
+        let mut query = DB.query("SELECT * FROM nsp_metadata WHERE download_id = $download_id")
+            .bind(("download_id", download_id.to_string()))
+            .await?;
+
+        let res = query.take(0)?;
+        Ok(res)
     }
 
     #[tracing::instrument(level = "debug")]
@@ -94,7 +105,7 @@ pub async fn init_database() -> surrealdb::Result<()> {
         .await?;
 
     tracing::info!("Initializing database schema");
-    
+
     let user_schema = include_str!("surql/user.surql");
     if let Err(e) = DB.query(user_schema).await {
         tracing::error!("Failed to initialize user schema: {}", e);

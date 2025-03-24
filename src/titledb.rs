@@ -1,6 +1,7 @@
 use crate::LOCALE;
 use crate::db::{DB, NspMetadata, create_precomputed_metaview};
 use crate::router::SearchQuery;
+use crate::util::format_download_id;
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -77,11 +78,13 @@ impl GameFileDataNaive {
         }
     }
 
-    pub async fn get(path: &Path, all_metadata: &[NspMetadata]) -> Result<Self> {
+    const VALID_EXTENSIONS: [&str; 4] = ["nsp", "nsz", "xci", "xcz"];
+    /// Try to get the cached naive metadata for a file
+    pub async fn get_cached(path: &Path, all_metadata: &[NspMetadata]) -> Result<Self> {
         let filename = path.file_name().unwrap().to_str().unwrap();
         let extension = path.extension().unwrap_or_default().to_str().unwrap();
 
-        if extension == "nsp" || extension == "nsz" || extension == "xci" || extension == "xcz" {
+        if Self::VALID_EXTENSIONS.contains(&extension) {
             //let nsp_data = NspData::read_file(path).unwrap();
             //let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
             if let Some(existing_metadata) = all_metadata
@@ -96,6 +99,7 @@ impl GameFileDataNaive {
             } else {
                 tracing::debug!("Reading NSP/NSZ/XCI file: {:?}", filename);
                 let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
+                let extension = path.extension().unwrap().to_str().unwrap();
                 let title_id = cnmt.get_title_id_string();
                 let version = cnmt.header.title_version.to_string();
                 // let cnmt_output = run_nstool(path.to_str().unwrap());
@@ -109,6 +113,7 @@ impl GameFileDataNaive {
                     title_id: title_id.clone(),
                     version: version.clone(),
                     title_name: None,
+                    download_id: format_download_id(&title_id, &version, extension),
                 };
                 if let Err(e) = metadata.save().await {
                     tracing::warn!("Failed to save metadata: {}", e);
@@ -129,6 +134,7 @@ impl GameFileDataNaive {
                         title_id: title_id.clone(),
                         version: version.clone(),
                         title_name: title_name.clone(),
+                        download_id: format_download_id(&title_id, &version, extension),
                     };
                     if let Err(e) = metadata.save().await {
                         tracing::warn!("Failed to save metadata with title name: {}", e);
@@ -147,6 +153,50 @@ impl GameFileDataNaive {
                     naive.title_id = Some(title_id.to_string());
                     return Ok(naive);
                 }
+            }
+        }
+
+        Ok(Self::parse_from_filename(filename))
+    }
+    
+    /// Try to get the naive metadata for a file without using the cache
+    pub async fn get(path: &Path) -> Result<Self> {
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        let extension = path.extension().unwrap_or_default().to_str().unwrap();
+
+        if Self::VALID_EXTENSIONS.contains(&extension) {
+            tracing::debug!("Reading NSP/NSZ/XCI file: {:?}", filename);
+            let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
+            let extension = path.extension().unwrap().to_str().unwrap();
+            let title_id = cnmt.get_title_id_string();
+            let version = cnmt.header.title_version.to_string();
+            tracing::debug!("Title ID: {:?}", title_id);
+            tracing::debug!("Version: {:?}", version);
+
+            // Only query title DB for new files
+            let title_query_start = std::time::Instant::now();
+            let config = crate::config::config();
+            let locale = config.backend_config.get_locale_string();
+            let title = Title::get_from_title_id(&locale, &title_id).await?;
+            tracing::debug!("Title query took {:?}", title_query_start.elapsed());
+
+            // If we got a title, return it
+            if let Some(title) = title {
+                let title_name = title.name.clone();
+                return Ok(Self {
+                    name: title_name.unwrap_or_default(),
+                    title_id: Some(title_id.to_string()),
+                    version: Some(version.clone()), // Use the NSP file's version instead of title.version
+                    region: title.region,
+                    other_tags: Vec::new(),
+                    extension: Some(extension.to_string()),
+                });
+            // else we got a title ID but no title, we can still return the title ID
+            } else {
+                let mut naive = Self::parse_from_filename(filename);
+                naive.title_id = Some(title_id.to_string());
+                naive.version = Some(version);
+                return Ok(naive);
             }
         }
 
@@ -187,17 +237,82 @@ where
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Metaview {
     pub title: Option<Title>,
+    pub path: String,
+    pub title_id: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub download_id: Option<String>,
+}
+
+pub fn default_locale() -> String {
+    LOCALE.to_string()
 }
 
 impl Metaview {
-    pub async fn get_from_title_id(title_id: &str, locale: &str) -> Result<Option<Self>> {
-        let query = format!("SELECT * FROM metaview_{locale} WHERE title.titleId = $tid");
+    pub async fn get_from_title_id(title_id: &str) -> Result<Option<Self>> {
+        let locale = default_locale();
+        let query = format!("SELECT * FROM metaview_{locale} WHERE title_id = $tid");
         let mut query = DB.query(query).bind(("tid", title_id.to_string())).await?;
         let data: Option<Metaview> = query.take(0)?;
         Ok(data)
     }
 
-    pub async fn get_base_games(locale: &str) -> Result<Vec<Self>> {
+    pub async fn get_from_download_id(download_id: &str) -> Result<Option<Self>> {
+        let locale = default_locale();
+        let query = format!("SELECT * FROM metaview_{locale} WHERE download_id = $did");
+        let mut query = DB.query(query).bind(("did", download_id.to_string())).await?;
+        let data: Option<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_all_titles() -> Result<Vec<Self>> {
+        let locale = default_locale();
+        let query = format!("SELECT * FROM metaview_{locale}");
+        let mut query = DB.query(query).await?;
+        let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_all_non_base_titles() -> Result<Vec<Self>> {
+        let locale = default_locale();
+        let query = format!(
+            "SELECT * FROM metaview_{locale}
+            WHERE title_id
+            AND not(string::ends_with(title_id, '000'))"
+        );
+        let mut query = DB.query(query).await?;
+        let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    /// Get all download IDs of a give
+    pub async fn get_download_ids(title_id: &str) -> Result<Vec<String>> {
+        let locale = default_locale();
+        let title_id_prefix = &title_id[..12];
+
+        let query = format!(
+            "SELECT * FROM metaview_{locale}
+            WHERE string::starts_with(title_id, $tid_pfx)"
+        );
+        let mut query = DB
+            .query(query)
+            .bind(("tid_pfx", title_id_prefix.to_string()))
+            .await?;
+
+        let data: Vec<Metaview> = query.take(0)?;
+
+        // Convert Metaview items to titleId strings
+        let title_ids = data
+            .into_iter()
+            .filter_map(|m| m.title)
+            .filter_map(|t| t.title_id)
+            .collect();
+
+        Ok(title_ids)
+    }
+
+    pub async fn get_base_games() -> Result<Vec<Self>> {
+        let locale = default_locale();
         let query = format!(
             "SELECT * FROM metaview_{locale} WHERE title.titleId AND string::ends_with(title.titleId, '000')"
         );
@@ -215,20 +330,27 @@ impl Metaview {
         Ok(data)
     }
 
-    pub async fn get_dlc(locale: &str) -> Result<Vec<Self>> {
+    /// Search for all DLC titles.
+    pub async fn get_dlc() -> Result<Vec<Self>> {
+        let locale = default_locale();
         let query = format!(
-            "SELECT * FROM metaview_{locale} WHERE title.titleId AND not string::ends_with(title.titleId, '000') AND not string::ends_with(title.titleId, '800')"
+            "SELECT * FROM metaview_{locale}
+            WHERE title.titleId
+            AND not string::ends_with(title.titleId, '000')
+            AND not string::ends_with(title.titleId, '800')"
         );
         let mut query = DB.query(query).await?;
         let data: Vec<Metaview> = query.take(0)?;
         Ok(data)
     }
 
+    /// Search for all base game titles.
     pub async fn search_base_game(search_query: &SearchQuery) -> Result<Vec<Title>> {
-        let locale = LOCALE.parse::<String>()?;
+        let locale = default_locale();
         let mut query = format!(
-            "SELECT * FROM metaview_{locale} WHERE 
-            string::ends_with(title_id, '000') AND title_name @@ $query"
+            "SELECT * FROM metaview_{locale}
+            WHERE string::ends_with(title_id, '000')
+            AND title_name @@ $query"
         );
 
         if search_query.limit.is_some() {
@@ -245,12 +367,13 @@ impl Metaview {
         Ok(data)
     }
 
-
+    /// Search for all titles, excluding updates.
     pub async fn search_all(search_query: &SearchQuery) -> Result<Vec<Title>> {
         let locale = LOCALE.parse::<String>()?;
         let mut query = format!(
-            "SELECT * FROM metaview_{locale} WHERE 
-            title_name @@ $query"
+            "SELECT * FROM metaview_{locale}
+            WHERE not(string::ends_with(title_id, '800'))
+            AND title_name @@ $query"
         );
 
         if search_query.limit.is_some() {
