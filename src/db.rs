@@ -108,6 +108,7 @@ pub async fn create_precomputed_metaview() -> surrealdb::Result<()> {
     let locale = config.backend_config.get_locale_string();
     let metaview_schema_main = base_schema.replace("%LOCALE%", &locale);
     DB.query(metaview_schema_main).await?;
+    tracing::info!("Metaview schema created for primary locale");
 
 
     // Secondary locales
@@ -115,6 +116,7 @@ pub async fn create_precomputed_metaview() -> surrealdb::Result<()> {
         tracing::info!("Creating metaview schema for secondary locale {}", locale);
         let metaview_schema = base_schema.replace("%LOCALE%", &locale);
         DB.query(metaview_schema).await?;
+        tracing::info!("Metaview schema created for secondary locale {}", locale);
     }
 
     Ok(())

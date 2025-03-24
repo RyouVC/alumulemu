@@ -10,12 +10,22 @@ use std::str;
 // Lazy-loaded static keyset and title keys
 static KEYSET: Lazy<Result<Keyset, color_eyre::eyre::Error>> = Lazy::new(|| {
     let config = crate::config::config();
-    Keyset::from_file(&config.backend_config.prod_keys).map_err(|e| e.into())
+    let path = &config.backend_config.prod_keys;
+    tracing::info!("Loading prod keys from: {}", path);
+    Keyset::from_file(path).map_err(|e| {
+        tracing::error!("Failed to load prod keys from {}: {}", path, e);
+        e.into()
+    })
 });
 
 static TITLE_KEYS: Lazy<Result<TitleKeys, color_eyre::eyre::Error>> = Lazy::new(|| {
     let config = crate::config::config();
-    TitleKeys::load_from_file(&config.backend_config.title_keys).map_err(|e| e.into())
+    let path = &config.backend_config.title_keys;
+    tracing::info!("Loading title keys from: {}", path);
+    TitleKeys::load_from_file(path).map_err(|e| {
+        tracing::error!("Failed to load title keys from {}: {}", path, e);
+        e.into()
+    })
 });
 
 const NSP_EXTENSIONS: &[&str] = &["nsp", "nsz"];

@@ -101,33 +101,48 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
             let permit = semaphore.clone().acquire_owned().await.unwrap();
             let task = tokio::spawn(async move {
                 let _permit = permit; // Keep permit alive for the duration of this task
+                const MAX_RETRIES: usize = 3;
+                const RETRY_DELAY_MS: u64 = 500;
 
                 tracing::debug!("Processing file: {}", file_path_str);
-                match GameFileDataNaive::get(&file_path, &all_metadata_clone).await {
-                    Ok(game_data) => {
-                        let title_id = game_data
-                            .title_id
-                            .unwrap_or_else(|| "00000000AAAA0000".to_string());
+                
+                let mut attempt = 0;
+                loop {
+                    attempt += 1;
+                    match GameFileDataNaive::get(&file_path, &all_metadata_clone).await {
+                        Ok(game_data) => {
+                            let title_id = game_data
+                                .title_id
+                                .unwrap_or_else(|| "00000000AAAA0000".to_string());
 
-                        // Get the title name from metadata or filename
-                        let title_name = all_metadata_clone
-                            .iter()
-                            .find(|m| m.path == file_path_str)
-                            .and_then(|m| m.title_name.clone())
-                            .unwrap_or_else(|| {
-                                game_data.name.trim().trim_end_matches(".nsp").to_string()
+                            // Get the title name from metadata or filename
+                            let title_name = all_metadata_clone
+                                .iter()
+                                .find(|m| m.path == file_path_str)
+                                .and_then(|m| m.title_name.clone())
+                                .unwrap_or_else(|| {
+                                    game_data.name.trim().trim_end_matches(".nsp").to_string()
+                                });
+
+                            return Some(NspMetadata {
+                                path: file_path_str,
+                                title_id,
+                                version: game_data.version.unwrap_or_else(|| "v0".to_string()),
+                                title_name: Some(title_name),
                             });
-
-                        Some(NspMetadata {
-                            path: file_path_str,
-                            title_id,
-                            version: game_data.version.unwrap_or_else(|| "v0".to_string()),
-                            title_name: Some(title_name),
-                        })
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to get game data for {}: {}", file_path_str, e);
-                        None
+                        }
+                        Err(e) => {
+                            if e.to_string().contains("This transaction can be retried") && attempt < MAX_RETRIES {
+                                tracing::info!("Retryable error on attempt {}/{} for {}: {}. Retrying...", 
+                                             attempt, MAX_RETRIES, file_path_str, e);
+                                tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+                                continue;
+                            }
+                            
+                            tracing::warn!("Failed to get game data for {} after {} attempt(s): {}", 
+                                          file_path_str, attempt, e);
+                            return None;
+                        }
                     }
                 }
             });

@@ -57,10 +57,10 @@ pub struct BackendConfig {
     )]
     pub secondary_locales: Vec<String>,
 
-    #[clap(long, env = "ALU_PROD_KEYS", default_value = "~/.switch/prod.keys")]
+    #[clap(long, env = "ALU_PROD_KEYS", default_value_t = String::from(dirs::home_dir().unwrap_or_default().join(".switch/prod.keys").to_str().unwrap_or("~/.switch/prod.keys")))]
     pub prod_keys: String,
 
-    #[clap(long, env = "ALU_TITLE_KEYS", default_value = "~/.switch/title.keys")]
+    #[clap(long, env = "ALU_TITLE_KEYS", default_value_t = String::from(dirs::home_dir().unwrap_or_default().join(".switch/title.keys").to_str().unwrap_or("~/.switch/title.keys")))]
     pub title_keys: String,
 
     #[clap(long, env = "ALU_TITLE_DB_CACHE_DIR", default_value_t = String::from(std::env::temp_dir().join("titledb").to_str().unwrap_or("/tmp/titledb")))]

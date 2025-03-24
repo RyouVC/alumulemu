@@ -58,3 +58,4 @@ nx-archive = "0.1.1"
 once_cell = "1.21.1"
 futures = "0.3.31"
 notify = "6.1.1" # For filesystem monitoring
+dirs = "6.0.0"
