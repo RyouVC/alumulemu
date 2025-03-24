@@ -28,4 +28,11 @@ SELECT
     *
 FROM nsp_metadata;
 
-SELECT * FROM metaview_%LOCALE%;
+DEFINE FIELD title_name ON nsp_metadata TYPE option<string> PERMISSIONS FULL;
+DEFINE FIELD path ON nsp_metadata TYPE string PERMISSIONS FULL;
+DEFINE FIELD title_id ON nsp_metadata TYPE string PERMISSIONS FULL;
+
+DEFINE INDEX IF NOT EXISTS metaview_idx_%LOCALE%
+    ON TABLE metaview_%LOCALE% 
+    FIELDS title_name
+    SEARCH ANALYZER alu_search BM25;

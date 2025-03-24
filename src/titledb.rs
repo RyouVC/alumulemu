@@ -1,4 +1,6 @@
+use crate::LOCALE;
 use crate::db::{DB, NspMetadata, create_precomputed_metaview};
+use crate::router::SearchQuery;
 use color_eyre::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -182,7 +184,7 @@ where
 // todo: maybe get surrealdb to support this natively
 /// An entry for the metaview cache, created by the schema using a precomputed view
 /// comparing the title ID of the NspMetadata with the title ID of titledb
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Metaview {
     pub title: Option<Title>,
 }
@@ -219,6 +221,49 @@ impl Metaview {
         );
         let mut query = DB.query(query).await?;
         let data: Vec<Metaview> = query.take(0)?;
+        Ok(data)
+    }
+
+    pub async fn search_base_game(search_query: &SearchQuery) -> Result<Vec<Title>> {
+        let locale = LOCALE.parse::<String>()?;
+        let mut query = format!(
+            "SELECT * FROM metaview_{locale} WHERE 
+            string::ends_with(title_id, '000') AND title_name @@ $query"
+        );
+
+        if search_query.limit.is_some() {
+            query.push_str(" LIMIT $limit");
+        }
+        let mut query = DB
+            .query(query)
+            .bind(("query", search_query.query.clone()))
+            .bind(("limit", search_query.limit.unwrap_or(100)))
+            .await?;
+        let data: Vec<Self> = query.take(0)?;
+
+        let data = data.into_iter().filter_map(|m| m.title).collect();
+        Ok(data)
+    }
+
+
+    pub async fn search_all(search_query: &SearchQuery) -> Result<Vec<Title>> {
+        let locale = LOCALE.parse::<String>()?;
+        let mut query = format!(
+            "SELECT * FROM metaview_{locale} WHERE 
+            title_name @@ $query"
+        );
+
+        if search_query.limit.is_some() {
+            query.push_str(" LIMIT $limit");
+        }
+        let mut query = DB
+            .query(query)
+            .bind(("query", search_query.query.clone()))
+            .bind(("limit", search_query.limit.unwrap_or(100)))
+            .await?;
+        let data: Vec<Self> = query.take(0)?;
+
+        let data = data.into_iter().filter_map(|m| m.title).collect();
         Ok(data)
     }
 }

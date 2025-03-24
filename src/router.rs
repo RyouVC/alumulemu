@@ -6,6 +6,7 @@ use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
 use crate::util::format_game_name;
+use axum::extract::Query;
 use axum::middleware;
 use axum::{
     Json, Router,
@@ -32,6 +33,7 @@ impl IntoResponse for Error {
 }
 
 type AlumRes<T> = Result<T, Error>;
+
 #[tracing::instrument]
 pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Result<()> {
     tracing::info!("Starting full metadata rescan of {}", path);
@@ -826,6 +828,39 @@ fn get_content_type(path: &str) -> String {
         .as_ref()
         .to_string()
 }
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct SearchQuery {
+    #[serde(rename = "q")]
+    pub query: String,
+    #[serde(rename = "limit")]
+    pub limit: Option<usize>,
+}
+
+pub async fn search_base_game(
+    query: Query<SearchQuery>,
+) -> AlumRes<Json<Vec<crate::titledb::Title>>> {
+    let query = query.0;
+    // let sq = query.query.clone();
+
+    tracing::debug!(?query, "Searching for base game with query");
+
+    let search = crate::titledb::Metaview::search_base_game(&query)
+        .await?
+        .to_vec();
+
+    Ok(Json(search))
+}
+
+pub async fn search_titles(query: Query<SearchQuery>) -> AlumRes<Json<Vec<crate::titledb::Title>>> {
+    let query = query.0;
+    // let sq = query.query.clone();
+
+    tracing::debug!(?query, "Searching for title with query");
+
+    let search = crate::titledb::Metaview::search_all(&query).await?.to_vec();
+
+    Ok(Json(search))
+}
 
 async fn serve_static_file(path: String) -> impl IntoResponse {
     match tokio::fs::read(&path).await {
@@ -890,6 +925,8 @@ pub fn create_router() -> Router {
         )
         .route("/api/grouped/{title_id}", get(list_grouped_by_titleid))
         .route("/api/base_games", get(list_base_games))
+        .route("/api/base_games/search", get(search_base_game))
+        .route("/api/search", get(search_titles))
         // web ui
         .nest("/admin", admin_router())
         // user things

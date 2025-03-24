@@ -94,11 +94,24 @@ pub async fn init_database() -> surrealdb::Result<()> {
         .await?;
 
     tracing::info!("Initializing database schema");
+    
     let user_schema = include_str!("surql/user.surql");
-    DB.query(user_schema).await?;
+    if let Err(e) = DB.query(user_schema).await {
+        tracing::error!("Failed to initialize user schema: {}", e);
+        return Err(e);
+    }
 
     let tables_schema = include_str!("surql/tables.surql");
-    DB.query(tables_schema).await?;
+    if let Err(e) = DB.query(tables_schema).await {
+        tracing::error!("Failed to initialize tables schema: {}", e);
+        return Err(e);
+    }
+
+    let util_schema = include_str!("surql/util.surql");
+    if let Err(e) = DB.query(util_schema).await {
+        tracing::error!("Failed to initialize util schema: {}", e);
+        return Err(e);
+    }
 
     tracing::info!("Database schema initialized");
 

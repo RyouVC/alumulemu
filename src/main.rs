@@ -14,9 +14,12 @@ use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::LazyLock;
 use std::time::Duration;
 use titledb::TitleDBImport;
 use util::download_titledb;
+static LOCALE: LazyLock<String> =
+    LazyLock::new(|| crate::config::config().backend_config.get_locale_string());
 
 pub fn games_dir() -> String {
     let config = config::config();
