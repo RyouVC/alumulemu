@@ -136,8 +136,8 @@ async fn import_titledb_background(config: config::Config) {
 
     tracing::info!("TitleDB import complete for all locales");
 
-    create_precomputed_metaview().await.unwrap();
-    tracing::info!("Precomputed metaviews created");
+    // create_precomputed_metaview().await.unwrap();
+    // tracing::info!("Precomputed metaviews created");
 }
 
 async fn schedule_titledb_imports(config: config::Config) {

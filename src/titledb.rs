@@ -412,9 +412,12 @@ impl Title {
         let title_id_query = if is_update {
             tracing::trace!("Fetching base game metadata for update");
             title_id.replace("800", "000")
+            
         } else {
             title_id.to_string()
         };
+
+        tracing::trace!("Fetching title metadata for {title_id_query}");
 
         let query = format!("SELECT * FROM metaview_{locale} WHERE titleId = $tid");
         let mut query = DB.query(query).bind(("tid", title_id_query)).await?;

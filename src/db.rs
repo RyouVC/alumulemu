@@ -104,19 +104,29 @@ pub async fn create_precomputed_metaview() -> surrealdb::Result<()> {
     let base_schema = include_str!("surql/metadb_view.surql");
 
     // Primary locale
+    let start = std::time::Instant::now();
     tracing::info!("Creating metaview schema for primary locale");
     let locale = config.backend_config.get_locale_string();
     let metaview_schema_main = base_schema.replace("%LOCALE%", &locale);
     DB.query(metaview_schema_main).await?;
-    tracing::info!("Metaview schema created for primary locale");
-
+    let duration = start.elapsed();
+    tracing::info!(
+        "Metaview schema created for primary locale in {:?}",
+        duration
+    );
 
     // Secondary locales
     for locale in config.backend_config.get_valid_secondary_locales() {
+        let start = std::time::Instant::now();
         tracing::info!("Creating metaview schema for secondary locale {}", locale);
         let metaview_schema = base_schema.replace("%LOCALE%", &locale);
         DB.query(metaview_schema).await?;
-        tracing::info!("Metaview schema created for secondary locale {}", locale);
+        let duration = start.elapsed();
+        tracing::info!(
+            "Metaview schema created for secondary locale {} in {:?}",
+            locale,
+            duration
+        );
     }
 
     Ok(())

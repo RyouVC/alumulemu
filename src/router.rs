@@ -763,9 +763,16 @@ pub async fn list_grouped_by_titleid(
 /// List base games only (games that end with 000)
 #[tracing::instrument]
 pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
+    tracing::debug!("Getting list of base games");
+    tracing::debug!("Retrieving all NSP metadata from database");
     let nsp_metadata = NspMetadata::get_all()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Failed to retrieve NSP metadata: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    tracing::debug!("Found {} total metadata entries", nsp_metadata.len());
 
     let mut base_games = Vec::new();
     for metadata in nsp_metadata.iter().filter(|m| m.title_id.ends_with("000")) {
