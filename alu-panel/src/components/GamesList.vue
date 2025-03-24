@@ -58,7 +58,14 @@
                     </h3>
                     <p class="text-gray-300 mb-2">{{ game.publisher }}</p>
                     <p class="text-gray-300">
-                        Size: {{ (game.size / (1024 * 1024)).toFixed(2) }} MB
+                        Size:
+                        {{
+                            game.size > 1024 * 1024 * 1024
+                                ? (game.size / (1024 * 1024 * 1024)).toFixed(
+                                      2,
+                                  ) + " GB"
+                                : (game.size / (1024 * 1024)).toFixed(2) + " MB"
+                        }}
                     </p>
                 </div>
             </button>
