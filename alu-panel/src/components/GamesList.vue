@@ -1,6 +1,7 @@
 <template>
-    <div class="p-0">
-        <div class="flex items-center gap-4 mb-12">
+    <div class="container mx-auto px-4">
+        <br />
+        <div class="flex items-center gap-4 py-8">
             <h1 class="text-white text-2xl font-semibold">Games</h1>
             <button
                 @click="rescanGames"
@@ -109,7 +110,7 @@ const rescanGames = async () => {
 
 const loadGames = async () => {
     try {
-        const response = await fetch("/");
+        const response = await fetch("/api/index");
         const data = await response.json();
         games.value = data.files || [];
     } catch (error) {

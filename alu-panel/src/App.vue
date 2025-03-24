@@ -22,7 +22,7 @@
             </div>
         </nav>
 
-        <div class="mt-16">
+        <div class="mt-24">
             <RouterView />
         </div>
     </div>
