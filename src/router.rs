@@ -94,6 +94,9 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
         let needs_update = !metadata_map.contains_key(&file_path_str);
 
         if needs_update {
+            // Log that we're updating this path
+            tracing::info!("Updating metadata for file: {}", file_path_str);
+
             let all_metadata_clone = all_metadata.clone();
             let permit = semaphore.clone().acquire_owned().await.unwrap();
             let task = tokio::spawn(async move {
@@ -123,7 +126,7 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
                         })
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to get game data: {}", e);
+                        tracing::warn!("Failed to get game data for {}: {}", file_path_str, e);
                         None
                     }
                 }
