@@ -412,7 +412,6 @@ impl Title {
         let title_id_query = if is_update {
             tracing::trace!("Fetching base game metadata for update");
             title_id.replace("800", "000")
-            
         } else {
             title_id.to_string()
         };
@@ -458,29 +457,30 @@ async fn import_entry_to_db(title: TitleDbEntry, db_sfx: &str) -> Result<()> {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TitleDBImport {
-    #[serde(flatten)]
-    titles: BTreeMap<String, TitleDbEntry>,
+    // #[serde(flatten)]
+    // titles: BTreeMap<String, TitleDbEntry>,
 }
 
 impl TitleDBImport {
-    pub fn new() -> Self {
-        TitleDBImport {
-            titles: BTreeMap::new(),
-        }
-    }
+    // pub fn new() -> Self {
+    //     TitleDBImport {
+    //         titles: BTreeMap::new(),
+    //     }
+    // }
 
     #[tracing::instrument(skip(reader))]
     pub async fn from_json_reader_streaming<R: std::io::Read>(
         reader: R,
-        db_sfx: &str,
-    ) -> Result<(), serde_json::Error> {
-        tracing::info!("Importing TitleDB data for {db_sfx} (Streamed)");
-        let mut db = Self::new();
-        let mut reader = JsonStreamReader::new(reader);
+        locale: &str,
+    ) -> color_eyre::Result<()> {
+        tracing::info!("Importing TitleDB data for {locale} (Streamed)");
 
-        // let a = stream_reader.next_string_reader();
-        // let s = stream_reader.next_string().unwrap();
-        // tracing::info!("Read string: {}", s);
+        // Create schema for table
+        let schema = include_str!("surql/titledb.surql").replace("%LOCALE%", locale);
+        let _q = DB.query(schema).await?;
+
+
+        let mut reader = JsonStreamReader::new(reader);
 
         reader.begin_object().unwrap();
 
@@ -493,15 +493,15 @@ impl TitleDBImport {
             let entry: TitleDbEntry = reader.deserialize_next().unwrap();
             // tracing::info!("Read key: {:#?}", entry);
             //
-            let nsuid = entry.nsu_id.unwrap_or_default();
-            import_entry_to_db(entry.clone(), db_sfx).await.unwrap();
+            // let nsuid = entry.nsu_id.unwrap_or_default();
+            import_entry_to_db(entry.clone(), locale).await.unwrap();
 
-            db.titles.insert(nsuid.to_string(), entry);
+            // db.titles.insert(nsuid.to_string(), entry);
         }
 
         reader.end_object().unwrap();
 
-        tracing::info!("Successfully imported TitleDB data for {db_sfx}");
+        tracing::info!("Successfully imported TitleDB data for {locale}");
         Ok(())
     }
 

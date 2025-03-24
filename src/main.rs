@@ -7,6 +7,7 @@ mod router;
 mod titledb;
 mod util;
 
+use color_eyre::Result;
 use cron::Schedule;
 use db::{create_precomputed_metaview, init_database};
 use reqwest::Client;
@@ -54,7 +55,7 @@ fn parse_secondary_locale_string(locale: &str) -> (String, String) {
     }
 }
 
-async fn import_titledb(lang: &str, region: &str) {
+async fn import_titledb(lang: &str, region: &str) -> Result<()> {
     let client = Client::new();
     let cache_dir = titledb_cache_dir();
     let path = cache_dir.join(format!("{}.{}.json", region, lang));
@@ -84,13 +85,13 @@ async fn import_titledb(lang: &str, region: &str) {
             TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
                 .await;
         tracing::info!("TitleDB import complete for {region}_{lang}");
-        return;
+        return Ok(());
     }
 
     // Only check recency if we already have data
     if !should_download {
         tracing::info!("TitleDB .json is recent, skipping...");
-        return;
+        return Ok(());
     }
 
     // Update existing data
@@ -99,19 +100,24 @@ async fn import_titledb(lang: &str, region: &str) {
     let _ =
         TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}")).await;
     tracing::info!("TitleDB update complete!");
+
+    Ok(())
 }
 
-async fn import_titledb_background(config: config::Config) {
+async fn import_titledb_background(config: config::Config) -> Result<()> {
     let span = tracing::info_span!("titledb_import");
     let _enter = span.enter();
 
     // Create primary import task
-    let primary_task = tokio::spawn({
-        let lang = config.backend_config.primary_lang.clone();
-        let region = config.backend_config.primary_region.clone();
+    let primary_task: tokio::task::JoinHandle<Result<()>> = tokio::spawn({
+        let backend_config = config.backend_config.clone();
+        let lang = backend_config.primary_lang.clone();
+        let region = backend_config.primary_region.clone();
         async move {
-            import_titledb(&lang, &region).await;
+            import_titledb(&lang, &region).await?;
             tracing::info!("TitleDB import complete for primary locale");
+            create_precomputed_metaview(&backend_config.get_locale_string()).await?;
+            Ok(())
         }
     });
 
@@ -123,27 +129,32 @@ async fn import_titledb_background(config: config::Config) {
         .map(|locale| {
             tokio::spawn(async move {
                 let (region, lang) = parse_secondary_locale_string(&locale);
-                import_titledb(&lang, &region).await;
+                import_titledb(&lang, &region).await?;
+                tracing::info!("TitleDB import complete for {}", locale);
+                create_precomputed_metaview(&locale).await?;
+                Ok(())
             })
         })
         .collect();
 
-    // Wait for all tasks to complete
-    primary_task.await.expect("Primary import task failed");
-    for task in secondary_tasks {
-        task.await.expect("Secondary import task failed");
-    }
+    // Wait for all tasks to complete concurrently
+    let mut all_tasks = vec![primary_task];
+    all_tasks.extend(secondary_tasks);
+    futures::future::join_all(all_tasks)
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Import tasks failed");
 
     tracing::info!("TitleDB import complete for all locales");
 
-    // create_precomputed_metaview().await.unwrap();
-    // tracing::info!("Precomputed metaviews created");
+    Ok(())
 }
 
-async fn schedule_titledb_imports(config: config::Config) {
+async fn schedule_titledb_imports(config: config::Config) -> Result<()> {
     // Schedule for every 6 hours: midnight, 6am, noon, 6pm
-    let expression = "0 0 0,6,12,18 * * * *";
-    let schedule = Schedule::from_str(expression).expect("Invalid cron expression");
+    const EXPRESSION: &str = "0 0 0,6,12,18 * * * *";
+    let schedule = Schedule::from_str(EXPRESSION).expect("Invalid cron expression");
 
     loop {
         // Get the current local time
@@ -169,7 +180,7 @@ async fn schedule_titledb_imports(config: config::Config) {
 
             // Run the import task
             tracing::info!("Scheduled TitleDB import starting");
-            import_titledb_background(config.clone()).await;
+            import_titledb_background(config.clone()).await?;
         } else {
             // This should never happen with a valid cron expression
             tracing::error!("Failed to determine next schedule time");
@@ -201,16 +212,16 @@ async fn main() -> color_eyre::Result<()> {
     let config_clone = config.clone();
     tokio::spawn(async move {
         // Run immediately the first time
-        import_titledb_background(config_clone.clone()).await;
+        import_titledb_background(config_clone.clone()).await?;
 
         // Then schedule recurring imports
-        schedule_titledb_imports(config_clone).await;
+        schedule_titledb_imports(config_clone).await?;
+        // Start the inotify watcher
+        romdir_inotify().await;
+        Ok::<(), color_eyre::Report>(())
     });
 
-    // Start the inotify watcher
-    romdir_inotify().await;
 
-    tracing::info!("Building frontend...");
     let app = create_router();
     let listener = tokio::net::TcpListener::bind(config.host).await.unwrap();
     tracing::info!("Listening on: {}", listener.local_addr().unwrap());

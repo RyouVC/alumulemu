@@ -1,9 +1,7 @@
 -- table that takes in nsp_metadata and fetches titles_US_en by looking WHERE titleId = $tid OR ids CONTAINS $tid
 
-
-
 -- todo: figure out if this precomputes properly
-DEFINE TABLE OVERWRITE metaview_%LOCALE% TYPE NORMAL AS
+DEFINE TABLE IF NOT EXISTS metaview_%LOCALE% TYPE NORMAL AS
     SELECT *
     FROM titles_%LOCALE%
     WHERE (

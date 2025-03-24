@@ -312,14 +312,6 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
 
                         if let Err(e) = metadata.save().await {
                             tracing::error!("Failed to save metadata: {}", e);
-                        } else {
-                            // Update the precomputed metaview if needed
-                            if let Err(e) = create_precomputed_metaview().await {
-                                tracing::warn!(
-                                    "Failed to update metaview after file change: {}",
-                                    e
-                                );
-                            }
                         }
                     }
                     Err(e) => {
@@ -336,11 +328,6 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
                 if let Some(metadata) = all_metadata.iter().find(|m| m.path == path_str) {
                     if let Err(e) = metadata.delete().await {
                         tracing::error!("Failed to delete metadata for {}: {}", path_str, e);
-                    } else {
-                        // Update the precomputed metaview if needed
-                        if let Err(e) = create_precomputed_metaview().await {
-                            tracing::warn!("Failed to update metaview after file removal: {}", e);
-                        }
                     }
                 }
             }
@@ -789,10 +776,10 @@ pub async fn rescan_games() -> AlumRes<Json<TinfoilResponse>> {
     tracing::info!("Rescanning games directory");
     update_metadata_from_filesystem(&games_dir()).await?;
     tracing::info!("Games rescanned successfully");
-    tracing::info!("(re)Creating precomputed metaview");
-    if let Err(e) = create_precomputed_metaview().await {
-        tracing::warn!("Failed to create precomputed metaview: {}", e);
-    }
+    // tracing::info!("(re)Creating precomputed metaview");
+    // if let Err(e) = create_precomputed_metaview().await {
+    //     tracing::warn!("Failed to create precomputed metaview: {}", e);
+    // }
     Ok(Json(TinfoilResponse::MiscSuccess(
         "Games rescanned successfully".to_string(),
     )))

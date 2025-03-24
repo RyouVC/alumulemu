@@ -45,6 +45,7 @@ impl NspMetadata {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug")]
     pub async fn get_titledb_title(
         &self,
     ) -> Result<Option<crate::titledb::Title>, color_eyre::Report> {
@@ -99,46 +100,16 @@ pub async fn init_database() -> surrealdb::Result<()> {
     Ok(())
 }
 
-pub async fn create_precomputed_metaview() -> surrealdb::Result<()> {
-    let config = crate::config::config();
+pub async fn create_precomputed_metaview(locale: &str) -> surrealdb::Result<()> {
     let base_schema = include_str!("surql/metadb_view.surql");
 
     // Primary locale
     let start = std::time::Instant::now();
-    tracing::info!("Creating metaview schema for primary locale");
-    let locale = config.backend_config.get_locale_string();
-    let metaview_schema_main = base_schema.replace("%LOCALE%", &locale);
+    tracing::info!("Creating metaview schema for locale {}", locale);
+    let metaview_schema_main = base_schema.replace("%LOCALE%", locale);
     DB.query(metaview_schema_main).await?;
     let duration = start.elapsed();
-    tracing::info!(
-        "Metaview schema created for primary locale in {:?}",
-        duration
-    );
-
-    // Secondary locales
-    for locale in config.backend_config.get_valid_secondary_locales() {
-        let start = std::time::Instant::now();
-        tracing::info!("Creating metaview schema for secondary locale {}", locale);
-        let metaview_schema = base_schema.replace("%LOCALE%", &locale);
-        DB.query(metaview_schema).await?;
-        let duration = start.elapsed();
-        tracing::info!(
-            "Metaview schema created for secondary locale {} in {:?}",
-            locale,
-            duration
-        );
-    }
+    tracing::info!("Metaview schema created for locale {locale} in {duration:?}");
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_delete_cache() {
-        init_database().await.unwrap();
-        NspMetadata::delete_cache().await.unwrap();
-    }
 }

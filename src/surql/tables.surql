@@ -1,0 +1,3 @@
+
+DEFINE TABLE IF NOT EXISTS nsp_metadata SCHEMALESS;
+
