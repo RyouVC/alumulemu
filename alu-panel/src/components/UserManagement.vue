@@ -7,6 +7,7 @@
                     @submit.prevent="createUser"
                     class="flex flex-col md:flex-row gap-4"
                 >
+                    <br />
                     <input
                         v-model="newUser.username"
                         type="text"
