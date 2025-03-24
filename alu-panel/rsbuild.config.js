@@ -16,7 +16,7 @@ export default defineConfig({
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    baseUrl: "/admin/",
+    baseUrl: "/",
   },
   dev: {
     hmr: {
@@ -26,13 +26,13 @@ export default defineConfig({
   },
   html: {
     template: "./index.html",
-    publicPath: "/admin/",
+    publicPath: "/",
   },
   output: {
     distPath: {
       root: "./dist",
     },
     clean: true,
-    publicPath: "/admin/",
+    publicPath: "/",
   },
 });

@@ -38,16 +38,29 @@
         >
             <button
                 v-for="game in games"
-                :key="game.url"
-                @click="downloadGame(getGameTitleId(game.url))"
-                class="bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 border border-gray-800 hover:bg-gray-700 w-full aspect-square flex flex-col justify-center"
+                :key="game.titleId"
+                @click="getMetadata(game.titleId)"
+                class="relative rounded-xl shadow-md hover:shadow-lg transition-all w-full aspect-square overflow-hidden group"
             >
-                <h3 class="text-xl font-bold text-white mb-2">
-                    {{ getGameTitle(game.url) }}
-                </h3>
-                <p class="text-gray-400 mb-4">
-                    Size: {{ (game.size / (1024 * 1024)).toFixed(2) }} MB
-                </p>
+                <!-- Game Image -->
+                <img
+                    :src="game.iconUrl"
+                    :alt="game.name"
+                    class="w-full h-full object-cover"
+                />
+
+                <!-- Hover Overlay -->
+                <div
+                    class="absolute inset-0 bg-blue-900/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-center p-4"
+                >
+                    <h3 class="text-xl font-bold text-white mb-2">
+                        {{ game.name }}
+                    </h3>
+                    <p class="text-gray-300 mb-2">{{ game.publisher }}</p>
+                    <p class="text-gray-300">
+                        Size: {{ (game.size / (1024 * 1024)).toFixed(2) }} MB
+                    </p>
+                </div>
             </button>
         </div>
     </div>
@@ -110,19 +123,19 @@ const rescanGames = async () => {
 
 const loadGames = async () => {
     try {
-        const response = await fetch("/api/index");
+        const response = await fetch("/api/base_games");
         const data = await response.json();
-        games.value = data.files || [];
+        games.value = data || [];
     } catch (error) {
         console.error("Error loading games:", error);
     }
 };
 
-const downloadGame = async (titleId) => {
+const getMetadata = async (titleId) => {
     try {
-        window.location.href = `/api/get_game/${titleId}`;
+        window.location.href = `/api/metadata/${titleId}`;
     } catch (error) {
-        alert("Error downloading game: " + error);
+        alert("Error finding metadata for game: " + error);
     }
 };
 

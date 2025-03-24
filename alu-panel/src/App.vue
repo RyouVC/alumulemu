@@ -5,11 +5,11 @@
                 <h1
                     class="font-bold text-white no-underline mx-2.5 router-link-active:text-green-500"
                 >
-                    Alumulemu Admin Panel |
+                    Alumulemu |
                 </h1>
 
                 <RouterLink
-                    to="/games"
+                    to="/"
                     class="font-bold text-gray-800 no-underline mx-2.5 router-link-active:text-green-500"
                     >Games</RouterLink
                 >

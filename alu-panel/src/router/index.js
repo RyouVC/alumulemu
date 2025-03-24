@@ -1,16 +1,17 @@
 import { createRouter, createWebHistory } from "vue-router";
 import GamesView from "../views/GamesView.vue";
 import UsersView from "../views/UsersView.vue";
+import MetadataView from "../views/MetadataView.vue";
 
 const router = createRouter({
-  history: createWebHistory("/admin/"),
+  history: createWebHistory("/"),
   routes: [
+    // {
+    //   path: "/",
+    //   redirect: "/games",
+    // },
     {
       path: "/",
-      redirect: "/games",
-    },
-    {
-      path: "/games",
       name: "games",
       component: GamesView,
     },
@@ -18,6 +19,11 @@ const router = createRouter({
       path: "/users",
       name: "users",
       component: UsersView,
+    },
+    {
+      path: "/metadata",
+      name: "metadata",
+      component: MetadataView,
     },
   ],
 });
