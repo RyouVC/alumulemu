@@ -844,9 +844,10 @@ pub fn static_router() -> Router {
 
 pub fn create_router() -> Router {
     Router::new()
-        .route("/", get(list_files))
+        // .route("/", get(list_files))
         // add static router
         .merge(static_router())
+        .route("/api/index", get(list_files))
         .route("/api/get_game/{title_id}", get(download_file))
         .route("/api/title_meta/{title_id}", get(title_meta))
         .route(
@@ -859,6 +860,12 @@ pub fn create_router() -> Router {
         .nest("/admin", admin_router())
         // user things
         .nest("/api", user_router())
-        .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+        // .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
+        .fallback(|| async {
+            match std::fs::read_to_string("alu-panel/dist/index.html") {
+                Ok(contents) => Html(contents).into_response(),
+                Err(_) => StatusCode::NOT_FOUND.into_response(),
+            }
+        })
         .layer(middleware::from_fn(basic_auth_if_public))
 }
