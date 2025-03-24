@@ -133,7 +133,7 @@ const loadGames = async () => {
 
 const getMetadata = async (titleId) => {
     try {
-        window.location.href = `/api/metadata/${titleId}`;
+        window.location.href = `/metadata?tid=${titleId}`;
     } catch (error) {
         alert("Error finding metadata for game: " + error);
     }
