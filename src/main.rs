@@ -9,7 +9,7 @@ mod util;
 
 use color_eyre::Result;
 use cron::Schedule;
-use db::{create_precomputed_metaview, init_database};
+use db::init_database;
 use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
 use std::path::PathBuf;
@@ -71,16 +71,24 @@ async fn import_titledb(lang: &str, region: &str) -> Result<()> {
         true
     };
 
-    // Check if the Title table is empty first
+    if should_download {
+        let path = download_titledb(&client, region, lang).await.unwrap();
+        let titledb_file = std::fs::File::open(&path).unwrap();
+        let _ =
+            TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
+                .await;
+        tracing::info!("TitleDB update complete!");
+        return Ok(());
+    }
+
+    // Check if the Title table is empty
     if titledb::Title::count(&format!("{region}_{lang}"))
         .await
         .unwrap()
         == 0
     {
-        // Force download if table is empty
-        let path = download_titledb(&client, region, lang).await.unwrap();
+        // Force import if table is empty, but don't re-download
         let titledb_file = std::fs::File::open(&path).unwrap();
-
         let _ =
             TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
                 .await;
@@ -88,19 +96,7 @@ async fn import_titledb(lang: &str, region: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Only check recency if we already have data
-    if !should_download {
-        tracing::info!("TitleDB .json is recent, skipping...");
-        return Ok(());
-    }
-
-    // Update existing data
-    let path = download_titledb(&client, region, lang).await.unwrap();
-    let titledb_file = std::fs::File::open(&path).unwrap();
-    let _ =
-        TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}")).await;
-    tracing::info!("TitleDB update complete!");
-
+    tracing::info!("TitleDB .json is recent and table has data, skipping...");
     Ok(())
 }
 
@@ -116,7 +112,7 @@ async fn import_titledb_background(config: config::Config) -> Result<()> {
         async move {
             import_titledb(&lang, &region).await?;
             tracing::info!("TitleDB import complete for primary locale");
-            create_precomputed_metaview(&backend_config.get_locale_string()).await?;
+            // create_precomputed_metaview(&backend_config.get_locale_string()).await?;
             Ok(())
         }
     });
@@ -131,7 +127,7 @@ async fn import_titledb_background(config: config::Config) -> Result<()> {
                 let (region, lang) = parse_secondary_locale_string(&locale);
                 import_titledb(&lang, &region).await?;
                 tracing::info!("TitleDB import complete for {}", locale);
-                create_precomputed_metaview(&locale).await?;
+                // create_precomputed_metaview(&locale).await?;
                 Ok(())
             })
         })
@@ -220,7 +216,6 @@ async fn main() -> color_eyre::Result<()> {
         romdir_inotify().await;
         Ok::<(), color_eyre::Report>(())
     });
-
 
     let app = create_router();
     let listener = tokio::net::TcpListener::bind(config.host).await.unwrap();

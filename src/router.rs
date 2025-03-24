@@ -1,7 +1,6 @@
 use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
-use crate::db::create_precomputed_metaview;
 use crate::games_dir;
 use crate::index::{Index, TinfoilResponse};
 
@@ -105,7 +104,7 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
                 const RETRY_DELAY_MS: u64 = 500;
 
                 tracing::debug!("Processing file: {}", file_path_str);
-                
+
                 let mut attempt = 0;
                 loop {
                     attempt += 1;
@@ -132,15 +131,29 @@ pub async fn update_metadata_from_filesystem(path: &str) -> color_eyre::eyre::Re
                             });
                         }
                         Err(e) => {
-                            if e.to_string().contains("This transaction can be retried") && attempt < MAX_RETRIES {
-                                tracing::info!("Retryable error on attempt {}/{} for {}: {}. Retrying...", 
-                                             attempt, MAX_RETRIES, file_path_str, e);
-                                tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+                            if e.to_string().contains("This transaction can be retried")
+                                && attempt < MAX_RETRIES
+                            {
+                                tracing::info!(
+                                    "Retryable error on attempt {}/{} for {}: {}. Retrying...",
+                                    attempt,
+                                    MAX_RETRIES,
+                                    file_path_str,
+                                    e
+                                );
+                                tokio::time::sleep(tokio::time::Duration::from_millis(
+                                    RETRY_DELAY_MS,
+                                ))
+                                .await;
                                 continue;
                             }
-                            
-                            tracing::warn!("Failed to get game data for {} after {} attempt(s): {}", 
-                                          file_path_str, attempt, e);
+
+                            tracing::warn!(
+                                "Failed to get game data for {} after {} attempt(s): {}",
+                                file_path_str,
+                                attempt,
+                                e
+                            );
                             return None;
                         }
                     }
@@ -752,23 +765,32 @@ pub async fn list_grouped_by_titleid(
 pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
     tracing::debug!("Getting list of base games");
     tracing::debug!("Retrieving all NSP metadata from database");
-    let nsp_metadata = NspMetadata::get_all()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to retrieve NSP metadata: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    
-    tracing::debug!("Found {} total metadata entries", nsp_metadata.len());
+    // let nsp_metadata = NspMetadata::get_all()
+    //     .await
+    //     .map_err(|e| {
+    //         tracing::error!("Failed to retrieve NSP metadata: {}", e);
+    //         StatusCode::INTERNAL_SERVER_ERROR
+    //     })?;
 
-    let mut base_games = Vec::new();
-    for metadata in nsp_metadata.iter().filter(|m| m.title_id.ends_with("000")) {
-        if let Ok(Some(title)) =
-            crate::titledb::Title::get_from_metaview_cache(&metadata.title_id).await
-        {
-            base_games.push(title);
-        }
-    }
+    // tracing::debug!("Found {} total metadata entries", nsp_metadata.len());
+
+    // let mut base_games = Vec::new();
+    // for metadata in nsp_metadata.iter().filter(|m| m.title_id.ends_with("000")) {
+    //     if let Ok(Some(title)) =
+    //         crate::titledb::Title::get_from_metaview_cache(&metadata.title_id).await
+    //     {
+    //         base_games.push(title);
+    //     }
+    // }
+
+    let locale = crate::config::config().backend_config.get_locale_string();
+
+    let base_games = crate::titledb::Metaview::get_base_games(&locale)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .into_iter()
+        .filter_map(|meta| meta.title)
+        .collect::<Vec<_>>();
 
     Ok(Json(base_games).into_response())
 }

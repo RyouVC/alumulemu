@@ -28,10 +28,10 @@ pub struct DatabaseConfig {
     #[clap(required_if_eq("db_auth_method", "root"))]
     pub root_password: Option<String>,
 
-    #[clap(env = "ALU_SURREAL_NAMESPACE", default_value = "alemulemu")]
+    #[clap(env = "ALU_SURREAL_NAMESPACE", default_value = "alumulemu")]
     pub db_namespace: String,
 
-    #[clap(env = "ALU_SURREAL_DATABASE", default_value = "alemulemu")]
+    #[clap(env = "ALU_SURREAL_DATABASE", default_value = "alumulemu")]
     pub db_database: String,
 }
 

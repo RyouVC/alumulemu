@@ -93,8 +93,14 @@ pub async fn init_database() -> surrealdb::Result<()> {
         .use_db(config.db_config.db_database)
         .await?;
 
+    tracing::info!("Initializing database schema");
     let user_schema = include_str!("surql/user.surql");
     DB.query(user_schema).await?;
+
+    let tables_schema = include_str!("surql/tables.surql");
+    DB.query(tables_schema).await?;
+
+    tracing::info!("Database schema initialized");
 
     tracing::info!("Database initialization complete");
     Ok(())
@@ -107,9 +113,17 @@ pub async fn create_precomputed_metaview(locale: &str) -> surrealdb::Result<()> 
     let start = std::time::Instant::now();
     tracing::info!("Creating metaview schema for locale {}", locale);
     let metaview_schema_main = base_schema.replace("%LOCALE%", locale);
-    DB.query(metaview_schema_main).await?;
-    let duration = start.elapsed();
-    tracing::info!("Metaview schema created for locale {locale} in {duration:?}");
+    match DB.query(metaview_schema_main).await {
+        Ok(response) => {
+            tracing::debug!("Query response: {:?}", response);
+            let duration = start.elapsed();
+            tracing::info!("Metaview schema created for locale {locale} in {duration:?}");
+        }
+        Err(e) => {
+            tracing::error!("Failed to create metaview schema: {}", e);
+            return Err(e);
+        }
+    }
 
     Ok(())
 }
