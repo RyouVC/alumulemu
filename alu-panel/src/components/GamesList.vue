@@ -3,6 +3,14 @@
         <br />
         <div class="flex items-center gap-4 py-8">
             <h1 class="text-white text-2xl font-semibold">Games</h1>
+            <div class="relative flex-1 max-w-md">
+                <input
+                    type="text"
+                    v-model="searchQuery"
+                    placeholder="Search games..."
+                    class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+            </div>
             <button
                 @click="rescanGames"
                 class="px-8 py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 flex items-center gap-2"
@@ -74,19 +82,62 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 const isScanning = ref(false);
 const games = ref([]);
-// you wanna touch me but i'm not tangible, ears on my head cause i'm an animal
-const getGameTitle = (url) => {
-    const titleMatch = url.match(/#(.*?)\[/);
-    return titleMatch ? titleMatch[1].trim() : "Unknown Title";
+const searchQuery = ref("");
+
+const loadingError = ref(null);
+
+let searchTimeout = null;
+
+const loadGames = async () => {
+    try {
+        loadingError.value = null;
+
+        let url = "/api/base_games";
+
+        if (searchQuery.value.trim()) {
+            url = `/api/base_games/search?q=${encodeURIComponent(searchQuery.value.trim())}`;
+        }
+
+        console.log("Fetching from:", url);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(
+                `Failed to fetch games: ${response.status} ${response.statusText}`,
+            );
+        }
+
+        const data = await response.json();
+        console.log("Response data:", data);
+
+        if (Array.isArray(data)) {
+            games.value = data;
+        } else if (data && Array.isArray(data.results)) {
+            games.value = data.results;
+        } else {
+            games.value = [];
+            console.warn("API didn't return an array:", data);
+        }
+    } catch (error) {
+        console.error("Error loading games:", error);
+        loadingError.value = error.message;
+        games.value = [];
+    }
 };
 
-const getGameTitleId = (url) => {
-    const titleIdMatch = url.match(/\[(.*?)\]/);
-    return titleIdMatch ? titleIdMatch[1] : "";
-};
+watch(searchQuery, () => {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    searchTimeout = setTimeout(() => {
+        loadGames();
+    }, 300);
+});
 
 const rescanGames = async () => {
     isScanning.value = true;
@@ -125,16 +176,6 @@ const rescanGames = async () => {
         console.error("Error:", error);
     } finally {
         isScanning.value = false;
-    }
-};
-
-const loadGames = async () => {
-    try {
-        const response = await fetch("/api/base_games");
-        const data = await response.json();
-        games.value = data || [];
-    } catch (error) {
-        console.error("Error loading games:", error);
     }
 };
 
