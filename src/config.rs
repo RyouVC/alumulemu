@@ -63,11 +63,12 @@ pub struct BackendConfig {
     #[clap(long, env = "ALU_TITLE_KEYS", default_value_t = String::from(dirs::home_dir().unwrap_or_default().join(".switch/title.keys").to_str().unwrap_or("~/.switch/title.keys")))]
     pub title_keys: String,
 
-    #[clap(long, env = "ALU_TITLE_DB_CACHE_DIR", default_value_t = String::from(std::env::temp_dir().join("titledb").to_str().unwrap_or("/tmp/titledb")))]
-    pub title_db_cache_dir: String,
-
     #[clap(long, env = "ALU_PUBLIC", default_value = "false")]
     pub public: bool,
+
+    /// Cache directory for importers and other temporary files, they should be cleaned up after use
+    #[clap(long, env = "ALU_CACHE_DIR", default_value = "/tmp/alumulemu")]
+    pub cache_dir: String,
 }
 
 impl BackendConfig {
@@ -85,7 +86,7 @@ impl BackendConfig {
     }
 
     pub fn temp_dir(&self) -> PathBuf {
-        self.title_db_cache_dir.clone().into()
+        self.cache_dir.clone().into()
     }
 }
 

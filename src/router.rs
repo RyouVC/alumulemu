@@ -599,6 +599,13 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
     )))
 }
 
+// test download RPC, won't be used in prod 
+pub async fn test_dl() -> impl IntoResponse {
+    let url = "http://example.com/download"; // Example URL for testing
+
+    StatusCode::OK.into_response()
+}
+
 pub fn admin_router() -> Router {
     Router::new()
         .route("/rescan", post(rescan_games))
@@ -610,6 +617,16 @@ pub fn admin_router() -> Router {
         })
         // Fix the middleware layering by using proper syntax
         .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
+}
+
+pub async fn search_titledb(query: Query<SearchQuery>) -> AlumRes<Json<Vec<crate::titledb::Title>>> {
+
+    tracing::debug!(?query, "Searching for title with query");
+
+    let search = crate::titledb::Title::search(&query)
+        .await?;
+
+    Ok(Json(search))
 }
 
 fn get_content_type(path: &str) -> String {
@@ -717,6 +734,7 @@ pub fn create_router() -> Router {
         .route("/api/grouped/{title_id}", get(list_grouped_by_titleid))
         .route("/api/base_games", get(list_base_games))
         .route("/api/base_games/search", get(search_base_game))
+        .route("/api/titledb/search", get(search_titledb))
         .route("/api/search", get(search_titles))
         // web ui
         .nest("/admin", admin_router())

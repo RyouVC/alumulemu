@@ -1,16 +1,48 @@
+use std::{fs::File, path::PathBuf};
+
 use crate::db::NspMetadata;
-use crate::titledb_cache_dir;
 use color_eyre::Result;
 use reqwest::Client;
-
+use tempfile::TempDir;
 const TITLEDB_BASEURL: &str = "https://github.com/blawar/titledb/raw/refs/heads/master";
+
+pub fn tempdir() -> TempDir {
+    tempfile::tempdir_in(cache_dir()).unwrap()
+}
+
+pub fn tempfile() -> File {
+    tempfile::tempfile_in(cache_dir()).unwrap()
+}
+
+pub fn cache_dir() -> PathBuf {
+    let cache_dir = crate::config::config().backend_config.cache_dir;
+    // create if not exists
+    let path = dirs::cache_dir().unwrap().join("alumulemu");
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
+
+pub fn titledb_cache_dir() -> PathBuf {
+    let cache_dir = cache_dir().join("titledb");
+    // Ensure the directory exists
+    if !std::path::Path::new(&cache_dir).exists() {
+        if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+            tracing::error!("Failed to create titledb cache directory: {}", e);
+        } else {
+            tracing::debug!("Created titledb cache directory: {}", cache_dir.display());
+        }
+    }
+
+    cache_dir
+}
 
 /// Downloads a TitleDB file from the internet
 pub async fn download_titledb(client: &Client, region: &str, lang: &str) -> Result<String> {
     let url = format!("{TITLEDB_BASEURL}/{}.{}.json", region, lang);
 
     let cache_dir = titledb_cache_dir();
-    let file_path = cache_dir.join(format!("{}.{}.json", region, lang))
+    let file_path = cache_dir
+        .join(format!("{}.{}.json", region, lang))
         .to_str()
         .unwrap()
         .to_string();
@@ -60,4 +92,3 @@ pub fn format_download_id(title_id: &str, version: &str, ext: &str) -> String {
     let version = version.strip_prefix('v').unwrap_or(version);
     format!("{}_v{}.{}", title_id, version, ext)
 }
-

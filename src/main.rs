@@ -28,21 +28,7 @@ pub fn games_dir() -> String {
     config.backend_config.rom_dir
 }
 
-pub fn titledb_cache_dir() -> PathBuf {
-    let config = config::config();
-    let cache_dir = config.backend_config.temp_dir();
 
-    // Ensure the directory exists
-    if !std::path::Path::new(&cache_dir).exists() {
-        if let Err(e) = std::fs::create_dir_all(&cache_dir) {
-            tracing::error!("Failed to create titledb cache directory: {}", e);
-        } else {
-            tracing::debug!("Created titledb cache directory: {}", cache_dir.display());
-        }
-    }
-
-    cache_dir
-}
 
 pub async fn romdir_inotify() {
     if let Err(e) = watch_filesystem_for_changes(&games_dir()).await {
@@ -61,7 +47,7 @@ fn parse_secondary_locale_string(locale: &str) -> (String, String) {
 
 async fn import_titledb(lang: &str, region: &str) -> Result<()> {
     let client = Client::new();
-    let cache_dir = titledb_cache_dir();
+    let cache_dir = util::titledb_cache_dir();
     let path = cache_dir.join(format!("{}.{}.json", region, lang));
 
     let should_download = if let Ok(metadata) = std::fs::metadata(&path) {

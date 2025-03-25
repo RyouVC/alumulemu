@@ -8,10 +8,14 @@
 //! - Merging to a repo with an existing repository of packages
 //!
 
+use async_zip::tokio::read::seek::ZipFileReader;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-pub mod not_ultranx;
+use tokio::{fs::File, io::BufReader};
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tracing::{debug, info};
 pub mod downloader;
+pub mod not_ultranx;
 #[derive(Error, Debug)]
 pub enum ImportError {
     // IO errors
@@ -21,9 +25,50 @@ pub enum ImportError {
     #[error("Request error: {0}")]
     RequestError(#[from] reqwest::Error),
 
+    #[error("Zip error: {0}")]
+    ZipError(#[from] async_zip::error::ZipError),
+
     // Other errors
     #[error("{0:?}")]
     Other(#[from] color_eyre::eyre::Report),
+}
+/// Recursively move a path to another location, handling cross-filesystem moves.
+///
+/// This is a more robust version of `tokio::fs::rename` that can handle cross-filesystem moves
+/// by manually copying files and directories.
+pub async fn recursive_move(src: &Path, dest: &Path) -> Result<()> {
+    debug!(from = ?src, to = ?dest, "Moving path");
+
+    if src.is_dir() {
+        // Try atomic rename (fast path)
+        if tokio::fs::rename(src, dest).await.is_ok() {
+            return Ok(());
+        }
+
+        // Manual copy for cross-filesystem moves
+        tokio::fs::create_dir_all(dest).await?;
+
+        let walker = jwalk::WalkDir::new(src);
+        for entry in walker.into_iter().filter_map(|entry| entry.ok()) {
+            let path = entry.path();
+            let relative = path.strip_prefix(src).unwrap();
+            let dest_path = dest.join(relative);
+
+            if path.is_dir() {
+                tokio::fs::create_dir_all(&dest_path).await?;
+            } else if tokio::fs::rename(&path, &dest_path).await.is_err() {
+                tokio::fs::copy(&path, &dest_path).await?;
+                tokio::fs::remove_file(&path).await?;
+            }
+        }
+
+        tokio::fs::remove_dir_all(src).await?;
+    } else if tokio::fs::rename(src, dest).await.is_err() {
+        tokio::fs::copy(src, dest).await?;
+        tokio::fs::remove_file(src).await?;
+    }
+
+    Ok(())
 }
 
 pub enum ImportSource {
@@ -36,28 +81,116 @@ pub enum ImportSource {
     RemoteHttpArchive(String),
     Repository,
 }
-
-pub fn process_import_source(source: ImportSource) -> Result<Vec<PathBuf>> {
-    match source {
-        ImportSource::Local(path) => Ok(vec![path]),
-        ImportSource::LocalArchive(path) => {
-            todo!()
-        },
-        ImportSource::LocalDir(path) => {
-            let walker = jwalk::WalkDir::new(path);
-            let files: Vec<PathBuf> = walker
-                .into_iter()
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| entry.file_type().is_file())
-                .map(|entry| entry.path().to_path_buf())
-                .collect();
-            Ok(files)
+impl ImportSource {
+    pub async fn process(&self) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
+        match self {
+            ImportSource::Local(path) => Ok((vec![path.to_path_buf()], None)),
+            ImportSource::LocalArchive(path) => self.extract_archive(path).await,
+            ImportSource::LocalDir(path) => {
+                let walker = jwalk::WalkDir::new(path);
+                let files: Vec<PathBuf> = walker
+                    .into_iter()
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| entry.file_type().is_file())
+                    .map(|entry| entry.path().to_path_buf())
+                    .collect();
+                Ok((files, None))
+            }
+            _ => todo!(),
         }
-        _ => todo!(),
+    }
+
+    /// Extract an archive to a temporary directory
+    async fn extract_archive(
+        &self,
+        path: &Path,
+    ) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
+        info!(archive_path = ?path, "Extracting archive to temporary directory");
+
+        // Create temporary directory
+        let temp_dir = crate::util::tempdir();
+        let temp_path = temp_dir.path();
+
+        // Extract the archive to the temporary directory
+        let extracted_files = extract_zip_to_directory(path, temp_path).await?;
+
+        info!(
+            files_extracted = extracted_files.len(),
+            temp_dir = ?temp_path,
+            "Extraction complete"
+        );
+
+        Ok((extracted_files, Some(temp_dir)))
     }
 }
 
 pub type Result<T> = std::result::Result<T, ImportError>;
+
+/// Generic function to extract a zip file to any directory
+/// Returns a list of paths to the extracted files
+pub async fn extract_zip_to_directory(zip_path: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
+    info!(archive = ?zip_path, destination = ?destination, "Extracting zip archive");
+    let file = BufReader::new(File::open(zip_path).await?);
+    let mut zip = ZipFileReader::with_tokio(file).await?;
+
+    let mut extracted_files = Vec::new();
+    let entry_count = zip.file().entries().len();
+
+    info!(entries = entry_count, "Scanning zip contents");
+
+    // Process all entries with progress logging
+    for index in 0..entry_count {
+        // Get entry information
+        let path_str;
+        let entry_is_dir;
+        {
+            let entry = zip.file().entries().get(index).unwrap();
+            path_str = entry.filename().as_str()?.to_string();
+            entry_is_dir = entry.dir()?;
+        }
+        let path = destination.join(&path_str);
+
+        // Log progress for every file
+        info!(
+            entry = index + 1,
+            total = entry_count,
+            path = path_str,
+            is_dir = entry_is_dir,
+            "Extracting file"
+        );
+
+        // Handle directories
+        if entry_is_dir {
+            if !path.exists() {
+                tokio::fs::create_dir_all(&path).await?;
+            }
+            continue;
+        }
+
+        // Handle files
+        if let Some(parent) = path.parent() {
+            if !parent.is_dir() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+        }
+
+        // Extract the file
+        let entry_reader = zip.reader_with_entry(index).await?;
+        let mut output_file = tokio::fs::File::create(&path).await?;
+        let bytes_copied = tokio::io::copy(&mut entry_reader.compat(), &mut output_file).await?;
+
+        debug!(
+            bytes = bytes_copied,
+            path = path_str,
+            "File extracted successfully"
+        );
+
+        // Track extracted file
+        extracted_files.push(path);
+    }
+
+    Ok(extracted_files)
+}
 
 /// Base trait for importers
 pub trait Importer {

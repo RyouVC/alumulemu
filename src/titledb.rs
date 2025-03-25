@@ -158,7 +158,7 @@ impl GameFileDataNaive {
 
         Ok(Self::parse_from_filename(filename))
     }
-    
+
     /// Try to get the naive metadata for a file without using the cache
     pub async fn get(path: &Path) -> Result<Self> {
         let filename = path.file_name().unwrap().to_str().unwrap();
@@ -260,7 +260,10 @@ impl Metaview {
     pub async fn get_from_download_id(download_id: &str) -> Result<Option<Self>> {
         let locale = default_locale();
         let query = format!("SELECT * FROM metaview_{locale} WHERE download_id = $did");
-        let mut query = DB.query(query).bind(("did", download_id.to_string())).await?;
+        let mut query = DB
+            .query(query)
+            .bind(("did", download_id.to_string()))
+            .await?;
         let data: Option<Metaview> = query.take(0)?;
         Ok(data)
     }
@@ -618,6 +621,29 @@ impl Title {
         Ok(data)
     }
 
+    pub async fn search(search_query: &SearchQuery) -> Result<Vec<Self>> {
+        let locale = crate::config::config().backend_config.get_locale_string();
+        let mut query = format!(
+            "SELECT * FROM titles_{locale}
+            WHERE name @@ $query
+            AND titleId
+            AND string::ends_with(titleId, '000')
+            "
+        );
+
+        if search_query.limit.is_some() {
+            query.push_str(" LIMIT $limit");
+        }
+        let mut query = DB
+            .query(query)
+            .bind(("query", search_query.query.clone()))
+            .bind(("limit", search_query.limit.unwrap_or(100)))
+            .await?;
+        let data: Vec<Self> = query.take(0)?;
+
+        Ok(data)
+    }
+
     pub async fn get_from_metaview_cache(title_id: &str) -> Result<Option<Self>> {
         let is_update = title_id.ends_with("800");
         let locale = crate::config::config().backend_config.get_locale_string();
@@ -656,6 +682,10 @@ impl Title {
     locale,
 ))]
 async fn import_entry_to_db(title: TitleDbEntry, locale: &str) -> Result<()> {
+    if title.title_id.is_none() {
+        return Ok(());
+    }
+
     let table_name = format!("titles_{}", locale);
     let nsuid = title.nsu_id.unwrap_or_default();
     let nsuid_str = nsuid.to_string(); // Convert u64 to String because surrealdb doesnt like numbered indexes
