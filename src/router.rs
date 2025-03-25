@@ -4,6 +4,8 @@ use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
 use crate::games_dir;
+use crate::import::downloader::DownloadQueueItem;
+use crate::import::downloader::DOWNLOAD_QUEUE;
 use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
@@ -51,7 +53,13 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
     let rescan = options.rescan;
 
     // Get all existing metadata
-    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+    let all_metadata = match NspMetadata::get_all().await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            tracing::error!("Failed to get existing metadata: {}", e);
+            return Err(color_eyre::eyre::eyre!("Failed to get existing metadata: {}", e));
+        }
+    };
 
     // Create a lookup map for faster metadata lookups
     let metadata_map: std::collections::HashMap<String, &NspMetadata> =
@@ -62,6 +70,12 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
 
     // Track which files we've seen during this scan
     let mut found_paths = std::collections::HashSet::new();
+
+    // Track statistics
+    let mut total_files = 0;
+    let mut processed_files = 0;
+    let mut skipped_files = 0;
+    let mut failed_files = 0;
 
     // Walk the directory and process each file
     let walker = jwalk::WalkDir::new(path)
@@ -80,15 +94,26 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
         });
 
     for entry in walker.into_iter() {
-        let path = entry.map_err(|e| Error::Error(color_eyre::eyre::eyre!(e.to_string())))?;
+        total_files += 1;
+        let path = match entry {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!("Failed to access file during scan: {}", e);
+                failed_files += 1;
+                continue; // Skip but don't abort entire operation
+            }
+        };
+
         let file_path = path.path();
 
         // Extract extension early for filtering
         if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
             if !VALID_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                skipped_files += 1;
                 continue;
             }
         } else {
+            skipped_files += 1;
             continue;
         }
 
@@ -101,28 +126,53 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
 
         if needs_update {
             // Use the dedicated scan_file function instead of duplicating code
-            if let Err(e) = scan_file(&file_path, rescan).await {
-                tracing::warn!("Failed to scan file {}: {}", file_path_str, e);
+            match scan_file(&file_path, rescan).await {
+                Ok(_) => {
+                    processed_files += 1;
+                    tracing::debug!("Successfully processed file: {}", file_path_str);
+                },
+                Err(e) => {
+                    failed_files += 1;
+                    tracing::error!("Failed to scan file {}: {}", file_path_str, e);
+                }
             }
+        } else {
+            skipped_files += 1;
+            tracing::debug!("Skipped file (already up to date): {}", file_path_str);
         }
     }
 
     // Delete metadata for files that no longer exist
     let mut deleted_count = 0;
+    let mut delete_failed_count = 0;
+
     for metadata in all_metadata.iter().filter(|m| !found_paths.contains(&m.path)) {
         tracing::info!("Removing metadata for non-existent file: {}", metadata.path);
-        if let Err(e) = metadata.delete().await {
-            tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
-        } else {
-            deleted_count += 1;
+        match metadata.delete().await {
+            Ok(_) => {
+                deleted_count += 1;
+                tracing::debug!("Successfully deleted metadata for: {}", metadata.path);
+            },
+            Err(e) => {
+                delete_failed_count += 1;
+                tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
+            }
         }
     }
 
     tracing::info!(
-        "Metadata rescan complete. Found {} files, removed {} stale entries.",
-        found_paths.len(),
-        deleted_count
+        "Metadata rescan complete. Results: total={}, processed={}, skipped={}, failed={}, deleted={}, delete_failed={}",
+        total_files,
+        processed_files,
+        skipped_files,
+        failed_files,
+        deleted_count,
+        delete_failed_count
     );
+
+    if failed_files > 0 || delete_failed_count > 0 {
+        tracing::warn!("Some operations failed during metadata rescan. Check logs for details.");
+    }
 
     Ok(())
 }
@@ -463,6 +513,24 @@ pub async fn download_file(
     Ok(response)
 }
 
+
+
+pub async fn download_game_test(
+    HttpPath(title_id_param): HttpPath<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    tracing::info!("Downloading game test for title ID: {}", title_id_param);
+    let mut queue = DOWNLOAD_QUEUE.lock().unwrap();
+    let importer = crate::import::not_ultranx::NotUltranxImporter::new();
+    let title = importer.get_title(&title_id_param).await.unwrap();
+    
+    let url = title.unwrap().full_pkg_url.unwrap();
+    
+    // let item = DownloadQueueItem::new(url, title_id_param.clone());
+    
+    // todo!()
+    Ok(Json(serde_json::json!({})))
+}
+
 // todo: create precomputed view for this
 #[tracing::instrument]
 pub async fn title_meta(
@@ -776,6 +844,7 @@ pub fn create_router() -> Router {
         .route("/api/base_games/search", get(search_base_game))
         .route("/api/titledb/search", get(search_titledb))
         .route("/api/search", get(search_titles))
+        // .route("/api/download_game_test/{title_id}", get(download_game_test))
         // web ui
         .nest("/admin", admin_router())
         // user things
