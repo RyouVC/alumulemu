@@ -1,6 +1,6 @@
 @import "./base.css";
 @import "tailwindcss";
-
+@plugin "daisyui";
 #app {
     width: 100%;
     /* max-width: 1600px; */

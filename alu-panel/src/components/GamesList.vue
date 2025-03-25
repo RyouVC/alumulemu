@@ -1,89 +1,31 @@
 <template>
-    <div class="container mx-auto px-4">
+    <div class="container px-4 mx-auto">
         <br />
         <div class="flex items-center gap-4 py-8">
-            <h1 class="text-white text-2xl font-semibold">Games</h1>
+            <h1 class="text-2xl font-semibold text-white">Games</h1>
             <div class="relative flex-1 max-w-md">
-                <input
-                    type="text"
-                    v-model="searchQuery"
-                    placeholder="Search games..."
-                    class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                <input type="text" v-model="searchQuery" placeholder="Search games..."
+                    class="w-full px-4 py-2 text-white bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
-            <button
-                @click="rescanGames"
-                @click.shift="forceRescanGames"
-                class="px-8 py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 flex items-center gap-2"
-                :disabled="isScanning"
-            >
-                <svg
-                    v-if="isScanning"
-                    class="animate-spin h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                >
-                    <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                    ></circle>
-                    <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                </svg>
+            <button @click="rescanGames" @click.shift="forceRescanGames"
+                class="flex items-center gap-2 font-semibold text-white bg-green-800 rounded-lg shadow-lg btn hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75"
+                :disabled="isScanning">
+                <span v-if="isScanning" class="loading loading-spinner loading-lg"></span>
                 {{ isScanning ? "Scanning..." : "Rescan Games" }}
             </button>
         </div>
         <br />
         <div
-            class="grid gap-[24px] grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7"
-        >
-            <button
-                v-for="game in games"
-                :key="game.titleId"
-                @click="getMetadata(game.titleId)"
-                class="relative rounded-xl shadow-md hover:shadow-lg transition-all w-full aspect-square overflow-hidden group"
-            >
-                <!-- Game Image -->
-                <img
-                    :src="game.iconUrl"
-                    :alt="game.name"
-                    class="w-full h-full object-cover"
-                />
-
-                <!-- Hover Overlay -->
-                <div
-                    class="absolute inset-0 bg-blue-900/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-center p-4"
-                >
-                    <h3 class="text-xl font-bold text-white mb-2">
-                        {{ game.name }}
-                    </h3>
-                    <p class="text-gray-300 mb-2">{{ game.publisher }}</p>
-                    <p class="text-gray-300">
-                        Size:
-                        {{
-                            game.size > 1024 * 1024 * 1024
-                                ? (game.size / (1024 * 1024 * 1024)).toFixed(
-                                      2,
-                                  ) + " GB"
-                                : (game.size / (1024 * 1024)).toFixed(2) + " MB"
-                        }}
-                    </p>
-                </div>
-            </button>
+            class="grid gap-[24px] grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+            <GameTitleButton v-for="game in games" :key="game.titleId" :game="game" @get-metadata="getMetadata" />
         </div>
     </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from "vue";
+import GameTitleButton from './GameTitleButton.vue';
+
 const isScanning = ref(false);
 const games = ref([]);
 const searchQuery = ref("");

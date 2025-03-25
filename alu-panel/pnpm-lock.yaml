@@ -14,6 +14,9 @@ importers:
       '@rsbuild/plugin-vue':
         specifier: ^1.0.7
         version: 1.0.7(@rsbuild/core@1.2.19)(vue@3.5.13)
+      daisyui:
+        specifier: ^5.0.9
+        version: 5.0.9
       vue:
         specifier: ^3.5.13
         version: 3.5.13
@@ -861,6 +864,9 @@ packages:
 
   csstype@3.1.3:
     resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
+
+  daisyui@5.0.9:
+    resolution: {integrity: sha512-RsaehHh45f+0shWgZZaOY09/8eOae2voRsqJCD71j9yrnYgcke0Nj5ys0ZxrW4SPcc4+q96kWyJu0Z8P1zZdoA==}
 
   debug@4.4.0:
     resolution: {integrity: sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA==}
@@ -2297,6 +2303,8 @@ snapshots:
       which: 2.0.2
 
   csstype@3.1.3: {}
+
+  daisyui@5.0.9: {}
 
   debug@4.4.0:
     dependencies:
