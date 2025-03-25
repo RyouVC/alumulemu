@@ -13,6 +13,7 @@
             </div>
             <button
                 @click="rescanGames"
+                @click.shift="forceRescanGames"
                 class="px-8 py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 flex items-center gap-2"
                 :disabled="isScanning"
             >
@@ -143,6 +144,47 @@ const rescanGames = async () => {
     isScanning.value = true;
     try {
         const response = await fetch("/admin/rescan", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error("Rescan failed");
+        }
+        await loadGames();
+    } catch (error) {
+        console.log(
+            "%c YOUR ADMIN PANEL SUCKS",
+            `
+        font-weight: bold;
+        font-size: 72px;
+        background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow:
+          1px 1px 0 #ff0000,
+          2px 2px 0 #ff7f00,
+          3px 3px 0 #ffff00,
+          4px 4px 0 #00ff00,
+          5px 5px 0 #0000ff,
+          6px 6px 0 #4b0082,
+          7px 7px 0 #8f00ff;
+      `,
+        );
+        console.error("Error:", error);
+    } finally {
+        isScanning.value = false;
+    }
+};
+
+const forceRescanGames = async () => {
+    isScanning.value = true;
+    console.log("Force rescan games");
+    try {
+        const response = await fetch("/admin/rescan?rescan=true", {
             method: "POST",
             credentials: "include",
             headers: {

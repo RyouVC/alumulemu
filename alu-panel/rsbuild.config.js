@@ -17,6 +17,10 @@ export default defineConfig({
       "Access-Control-Allow-Origin": "*",
     },
     baseUrl: "/",
+    proxy: {
+      "/api": "http://localhost:3000",
+      "/admin": "http://localhost:3000",
+    },
   },
   dev: {
     hmr: {

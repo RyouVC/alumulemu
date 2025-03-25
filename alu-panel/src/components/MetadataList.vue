@@ -66,16 +66,36 @@
 
                 <div class="bg-gray-900 min-h-[70vh] relative pt-8 rounded-lg">
                     <div
-                        class="absolute right-8 -top-6 h-12 w-48 overflow-visible z-20"
+                        class="absolute right-8 -top-6 overflow-visible z-20 flex flex-col items-center"
                     >
                         <button
-                            @click="downloadGame(metadata.titleId)"
-                            class="absolute inset-0 px-8 py-1 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 flex items-center justify-center gap-2"
+                            @click="
+                                downloadGame(
+                                    selectedDownloadId || metadata.titleId,
+                                )
+                            "
+                            class="px-8 py-1 w-48 h-12 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 flex items-center justify-center gap-2 mt-3"
                         >
                             Download
                         </button>
                     </div>
-
+                    <div class="flex justify-end pr-8">
+                        <select
+                            name="ids"
+                            id="ids"
+                            v-model="selectedDownloadId"
+                            class="mt-3 w-48 px-8 py-1 bg-gray-800 text-white rounded-lg font-semibold shadow-lg z-10"
+                            v-if="downloadIds.length > 0"
+                        >
+                            <option
+                                v-for="id in downloadIds"
+                                :key="id"
+                                :value="id"
+                            >
+                                {{ id }}
+                            </option>
+                        </select>
+                    </div>
                     <div class="px-8 pt-20">
                         <div class="text-white">
                             <h2 class="text-xl font-semibold mb-2">
@@ -99,6 +119,8 @@ export default {
         return {
             titleId: null,
             metadata: null,
+            downloadIds: [],
+            selectedDownloadId: "",
         };
     },
     methods: {
@@ -107,6 +129,40 @@ export default {
                 window.location.href = `/api/get_game/${titleId}`;
             } catch (error) {
                 alert("Error downloading game: " + error);
+            }
+        },
+        async getDownloadIds(titleId) {
+            try {
+                const response = await fetch(
+                    `/api/title_meta/${titleId}/download_ids`,
+                );
+                if (!response.ok) {
+                    throw new Error("Failed to fetch download IDs");
+                }
+                const data = await response.json();
+                console.log(data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching download IDs:", error);
+                return [];
+            }
+        },
+        async fetchDownloadIds(titleId) {
+            try {
+                const response = await fetch(
+                    `/api/title_meta/${titleId}/download_ids`,
+                );
+                if (!response.ok) {
+                    throw new Error("Failed to fetch download IDs");
+                }
+                const data = await response.json();
+                console.log(data);
+                this.downloadIds = data;
+                return data;
+            } catch (error) {
+                console.error("Error fetching download IDs:", error);
+                this.downloadIds = [];
+                return [];
             }
         },
     },
@@ -119,10 +175,24 @@ export default {
                     throw new Error("Failed to fetch metadata");
                 }
                 this.metadata = await response.json();
+
+                await this.fetchDownloadIds(this.titleId);
+                let box = document.getElementById("ids");
+                if (box && this.downloadIds.length > 0) {
+                    box.value = this.downloadIds[0];
+                    this.selectedDownloadId = this.downloadIds[0];
+                }
             } catch (error) {
                 console.error("Error fetching metadata:", error);
             }
         }
+    },
+    watch: {
+        async titleId(newTitleId) {
+            if (newTitleId) {
+                await this.fetchDownloadIds(newTitleId);
+            }
+        },
     },
 };
 </script>
