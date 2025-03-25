@@ -307,8 +307,7 @@ impl Metaview {
         // Convert Metaview items to titleId strings
         let title_ids = data
             .into_iter()
-            .filter_map(|m| m.title)
-            .filter_map(|t| t.title_id)
+            .filter_map(|t| t.download_id)
             .collect();
 
         Ok(title_ids)
@@ -681,6 +680,7 @@ impl Title {
     nsuid = title.nsu_id.unwrap_or_default(),
     locale,
 ))]
+
 async fn import_entry_to_db(title: TitleDbEntry, locale: &str) -> Result<()> {
     if title.title_id.is_none() {
         return Ok(());

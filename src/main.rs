@@ -79,9 +79,14 @@ async fn import_titledb(lang: &str, region: &str) -> Result<()> {
     {
         // Force import if table is empty, but don't re-download
         let titledb_file = std::fs::File::open(&path).unwrap();
-        let _ =
-            TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
-                .await;
+
+        
+        let start = std::time::Instant::now();
+        let result = TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
+            .await;
+        let duration = start.elapsed();
+        tracing::info!("TitleDB import for {region}_{lang} took: {:?}", duration);
+        let _ = result;
         tracing::info!("TitleDB import complete for {region}_{lang}");
         return Ok(());
     }

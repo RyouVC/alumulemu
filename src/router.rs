@@ -585,17 +585,57 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
 
     Ok(Json(base_games).into_response())
 }
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use once_cell::sync::Lazy;
+
+// Global flag to track if a rescan job is already running
+static RESCAN_IN_PROGRESS: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
 pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
-    tracing::info!("Rescanning games directory");
-    update_metadata_from_filesystem(&games_dir(), options.0).await?;
-    tracing::info!("Games rescanned successfully");
-    // tracing::info!("(re)Creating precomputed metaview");
-    // if let Err(e) = create_precomputed_metaview().await {
-    //     tracing::warn!("Failed to create precomputed metaview: {}", e);
-    // }
+    // Try to set the flag - returns false if already set
+    if RESCAN_IN_PROGRESS.compare_exchange(
+        false, 
+        true, 
+        Ordering::SeqCst, 
+        Ordering::SeqCst
+    ).is_err() {
+        tracing::info!("Rescan already in progress, ignoring new request");
+        return Ok(Json(TinfoilResponse::MiscSuccess(
+            "A games rescan is already in progress".to_string(),
+        )));
+    }
+
+    tracing::info!("Starting games directory rescan as async background job");
+
+    // Clone the flag for use in the background task
+    let rescan_flag = RESCAN_IN_PROGRESS.clone();
+
+    // Spawn a background task to handle the rescan
+    tokio::spawn(async move {
+        let result = update_metadata_from_filesystem(&games_dir(), options.0).await;
+
+        match result {
+            Ok(_) => {
+                tracing::info!("Background rescan job completed successfully");
+                // Uncomment if you want to add metaview creation back
+                // tracing::info!("(re)Creating precomputed metaview");
+                // if let Err(e) = create_precomputed_metaview().await {
+                //     tracing::warn!("Failed to create precomputed metaview: {}", e);
+                // }
+            }
+            Err(e) => {
+                tracing::error!("Background rescan job failed: {}", e);
+            }
+        }
+
+        // Reset the flag when the job completes
+        rescan_flag.store(false, Ordering::SeqCst);
+    });
+
+    // Return immediately with a message that the job has started
     Ok(Json(TinfoilResponse::MiscSuccess(
-        "Games rescanned successfully".to_string(),
+        "Games rescan started in background".to_string(),
     )))
 }
 

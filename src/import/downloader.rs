@@ -13,6 +13,9 @@ use ulid::Ulid;
 
 use crate::db::DB;
 
+pub static DOWNLOAD_QUEUE: std::sync::LazyLock<std::sync::Mutex<DownloadQueue>> = 
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(DownloadQueue::new()));
+
 /// Represents the progress of a download
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Progress {
@@ -113,6 +116,26 @@ pub struct DownloadQueueItem {
 }
 
 impl DownloadQueueItem {
+    /// Creates a new `DownloadQueueItem` with the specified URL and output path
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The URL to download from
+    /// * `output_path` - The path to save the downloaded file to (can be a directory)
+    ///
+    /// # Returns
+    ///
+    /// A new `DownloadQueueItem` with default values for other fields
+    pub fn new<P: AsRef<Path>>(url: impl Into<String>, output_path: P) -> Self {
+        Self {
+            id: None,
+            url: url.into(),
+            output_path: output_path.as_ref().to_path_buf(),
+            progress: Progress::default(),
+            created_at: None,
+        }
+    }
+
     pub async fn save(&self) -> color_eyre::Result<()> {
         let _: Option<Self> = DB
             .upsert(("download_queue", self.id.as_ref().unwrap().to_string()))
