@@ -7,12 +7,14 @@
                 <input type="text" v-model="searchQuery" placeholder="Search games..."
                     class="w-full px-4 py-2 text-white bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
-            <button @click="rescanGames" @click.shift="forceRescanGames"
-                class="flex items-center gap-2 font-semibold text-white bg-green-800 rounded-lg shadow-lg btn hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75"
+            <AluButton @click="rescanGames" @click.shift="forceRescanGames"
+                level="success"
+                size="small"
+                variant="soft"
+                :loading="isScanning"
                 :disabled="isScanning">
-                <span v-if="isScanning" class="loading loading-spinner loading-lg"></span>
                 {{ isScanning ? "Scanning..." : "Rescan Games" }}
-            </button>
+            </AluButton>
         </div>
         <br />
         <div
@@ -25,6 +27,7 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import GameTitleButton from './GameTitleButton.vue';
+import AluButton from './AluButton.vue';
 
 const isScanning = ref(false);
 const games = ref([]);

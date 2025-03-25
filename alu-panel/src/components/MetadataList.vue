@@ -71,7 +71,12 @@
 
                 <div class="bg-gray-900 min-h-[70vh] relative pt-8 rounded-lg">
                     <div class="absolute z-20 flex flex-col items-center overflow-visible right-8 -top-6">
-                        <AluButton @click="downloadGame(selectedDownloadId || metadata.titleId)">
+                        <AluButton
+                        @click="downloadGame(selectedDownloadId || metadata.titleId)"
+                        level="success"
+                        size="medium"
+                        class="btn-wide"
+                        >
                             Download
                         </AluButton>
                     </div>
