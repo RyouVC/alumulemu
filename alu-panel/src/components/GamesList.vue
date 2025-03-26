@@ -1,25 +1,57 @@
 <template>
-    <div class="container px-4 mx-auto">
-        <br />
-        <div class="flex items-center gap-4 py-8">
-            <h1 class="text-2xl font-semibold text-white">Games</h1>
-            <div class="relative flex-1 max-w-md">
+    <div class="container mx-auto px-4 md:px-8 lg:px-16 pt-8">
+        <!-- Header section with search and rescan button -->
+        <div class="flex flex-col md:flex-row md:items-center gap-4 py-8">
+            <h1 class="text-2xl font-bold text-base-content">Games</h1>
+
+            <!-- Search input with DaisyUI styling -->
+            <div class="join flex-1 max-w-md">
                 <input type="text" v-model="searchQuery" placeholder="Search games..."
-                    class="w-full px-4 py-2 text-white bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    class="input input-bordered join-item w-full" />
+                <button class="btn join-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
             </div>
-            <AluButton @click="rescanGames" @click.shift="forceRescanGames"
-                level="success"
-                size="small"
-                variant="soft"
-                :loading="isScanning"
-                :disabled="isScanning">
+
+            <!-- Already using AluButton component -->
+            <AluButton @click="rescanGames" @click.shift="forceRescanGames" level="success" size="small" variant="soft"
+                :loading="isScanning" :disabled="isScanning">
                 {{ isScanning ? "Scanning..." : "Rescan Games" }}
             </AluButton>
         </div>
-        <br />
-        <div
-            class="grid gap-[24px] grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-            <GameTitleButton v-for="game in games" :key="game.titleId" :game="game" @get-metadata="getMetadata" />
+
+        <!-- Status indicator -->
+        <div v-if="loadingError" class="alert alert-error mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ loadingError }}</span>
+        </div>
+
+        <!-- Loading indicator - Only show while loading -->
+        <div v-if="isLoading" class="flex justify-center my-8">
+            <span class="loading loading-spinner loading-lg text-primary"></span>
+        </div>
+
+        <!-- Games grid with DaisyUI responsive classes -->
+        <div v-if="games.length > 0"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+            <GameTitleButton v-for="game in games" :key="game.titleId" :game="game" @get-metadata="getMetadata"
+                class="card bg-base-200 hover:bg-base-300 transition-colors duration-200" />
+        </div>
+
+        <!-- Empty state -->
+        <div v-if="games.length === 0 && !isLoading && !loadingError" class="card bg-base-200 p-6 text-center my-8">
+            <h3 class="text-xl font-bold">No games found</h3>
+            <p class="text-base-content/70">
+                {{ searchQuery ? 'Try a different search term' : 'No games found in your library' }}
+            </p>
         </div>
     </div>
 </template>
@@ -30,6 +62,7 @@ import GameTitleButton from './GameTitleButton.vue';
 import AluButton from './AluButton.vue';
 
 const isScanning = ref(false);
+const isLoading = ref(true);
 const games = ref([]);
 const searchQuery = ref("");
 
@@ -39,6 +72,7 @@ let searchTimeout = null;
 
 const loadGames = async () => {
     try {
+        isLoading.value = true;
         loadingError.value = null;
 
         let url = "/api/base_games";
@@ -72,6 +106,8 @@ const loadGames = async () => {
         console.error("Error loading games:", error);
         loadingError.value = error.message;
         games.value = [];
+    } finally {
+        isLoading.value = false;
     }
 };
 
