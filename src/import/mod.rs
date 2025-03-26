@@ -9,6 +9,7 @@
 //!
 
 use async_zip::tokio::read::seek::ZipFileReader;
+use downloader::{DOWNLOAD_QUEUE, DownloadQueue, DownloadQueueItem};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::{fs::File, io::BufReader};
@@ -28,9 +29,20 @@ pub enum ImportError {
     #[error("Zip error: {0}")]
     ZipError(#[from] async_zip::error::ZipError),
 
+    // Mutex errors
+    #[error("Mutex lock error: {0}")]
+    MutexError(String),
+
     // Other errors
     #[error("{0:?}")]
     Other(#[from] color_eyre::eyre::Report),
+}
+
+// Add From implementation for PoisonError
+impl<T> From<std::sync::PoisonError<std::sync::MutexGuard<'_, T>>> for ImportError {
+    fn from(err: std::sync::PoisonError<std::sync::MutexGuard<'_, T>>) -> Self {
+        ImportError::MutexError(err.to_string())
+    }
 }
 /// Recursively move a path to another location, handling cross-filesystem moves.
 ///
@@ -64,11 +76,26 @@ pub async fn recursive_move(src: &Path, dest: &Path) -> Result<()> {
 
         tokio::fs::remove_dir_all(src).await?;
     } else if tokio::fs::rename(src, dest).await.is_err() {
+        // Make sure parent directory exists
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         tokio::fs::copy(src, dest).await?;
         tokio::fs::remove_file(src).await?;
     }
 
+    debug!(from = ?src, to = ?dest, "Path moved successfully");
     Ok(())
+}
+
+pub fn download_path() -> PathBuf {
+    let config = crate::config::config();
+    let path = PathBuf::from(config.backend_config.cache_dir.clone()).join("downloads");
+    // Ensure the download directory exists
+    std::fs::create_dir_all(&path).unwrap_or_else(|e| {
+        debug!("Failed to create download directory: {}", e);
+    });
+    path
 }
 
 pub enum ImportSource {
@@ -96,8 +123,62 @@ impl ImportSource {
                     .collect();
                 Ok((files, None))
             }
+            ImportSource::RemoteHttp(url) => {
+                let path = Self::download_http(url).await?;
+                Ok((vec![path], None))
+            }
+            ImportSource::RemoteHttpArchive(url) => {
+                let path = Self::download_http(url).await?;
+                self.extract_archive(&path).await
+            }
             _ => todo!(),
         }
+    }
+
+    pub async fn download_http(url: &str) -> Result<PathBuf> {
+        let download_path = download_path();
+        let queue_item = DownloadQueueItem::new(url, download_path);
+
+        // Create a scope to ensure the lock is dropped after getting the handle
+        let mut handle = {
+            // Lock is acquired here
+            let mut queue = DOWNLOAD_QUEUE.lock()?;
+            
+            // Lock is automatically dropped here when queue goes out of scope
+            queue.add(queue_item)
+        };
+
+        // let mut handle = dl_queue.add(queue_item);
+        // drop(dl_queue);
+
+        tracing::info!("Download added to queue with handle: {:?}", handle);
+
+        if let Ok(path) = handle.wait_until_done().await {
+            Ok(path)
+        } else {
+            Err(ImportError::Other(color_eyre::eyre::eyre!(
+                "Download failed"
+            )))
+        }
+    }
+
+    // Directly import to the roms directory
+    pub async fn import(&self) -> Result<()> {
+        let config = crate::config::config();
+        let rom_dir = config.backend_config.rom_dir.clone();
+        let rom_dir = Path::new(&rom_dir);
+
+        let (output_files, temp_dir) = self.process().await?;
+
+        for file in output_files {
+            let dest = rom_dir.join(file.file_name().unwrap());
+            recursive_move(&file, &dest).await?;
+        }
+
+        if let Some(temp_dir) = temp_dir {
+            let _ = temp_dir.close();
+        }
+        Ok(())
     }
 
     /// Extract an archive to a temporary directory

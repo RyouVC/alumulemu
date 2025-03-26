@@ -4,6 +4,8 @@ use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
 use crate::games_dir;
+use crate::import::IdImporter;
+use crate::import::ImportSource;
 use crate::import::downloader::DOWNLOAD_QUEUE;
 use crate::import::downloader::DownloadQueueItem;
 use crate::index::{Index, TinfoilResponse};
@@ -527,16 +529,29 @@ pub async fn download_game_test(
     HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("Downloading game test for title ID: {}", title_id_param);
-    let mut queue = DOWNLOAD_QUEUE.lock().unwrap();
+
     let importer = crate::import::not_ultranx::NotUltranxImporter::new();
-    let title = importer.get_title(&title_id_param).await.unwrap();
+    let import = importer
+        .import_by_id(&title_id_param.clone(), None)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to import game: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    let url = title.unwrap().full_pkg_url.unwrap();
+    tokio::spawn(async move {
+        if let Err(e) = import.import().await {
+            tracing::error!("Failed to import game: {}", e);
+        }
 
-    // let item = DownloadQueueItem::new(url, title_id_param.clone());
+        // start rescan
+        let _ = trigger_rescan(Default::default()).await;
+    });
 
-    // todo!()
-    Ok(Json(serde_json::json!({})))
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": "Download added to queue"
+    })))
 }
 
 // todo: create precomputed view for this
@@ -666,16 +681,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 // Global flag to track if a rescan job is already running
 static RESCAN_IN_PROGRESS: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
-pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
+pub async fn trigger_rescan(options: RescanOptions) -> color_eyre::Result<()> {
     // Try to set the flag - returns false if already set
     if RESCAN_IN_PROGRESS
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
         tracing::info!("Rescan already in progress, ignoring new request");
-        return Ok(Json(TinfoilResponse::MiscSuccess(
-            "A games rescan is already in progress".to_string(),
-        )));
+        return Ok(());
     }
 
     tracing::info!("Starting games directory rescan as async background job");
@@ -685,7 +698,7 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
 
     // Spawn a background task to handle the rescan
     tokio::spawn(async move {
-        let result = update_metadata_from_filesystem(&games_dir(), options.0).await;
+        let result = update_metadata_from_filesystem(&games_dir(), options).await;
 
         match result {
             Ok(_) => {
@@ -705,17 +718,17 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
         rescan_flag.store(false, Ordering::SeqCst);
     });
 
+    Ok(())
+}
+
+pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
+    // Trigger the rescan job
+    let _ = trigger_rescan(options.0).await;
+
     // Return immediately with a message that the job has started
     Ok(Json(TinfoilResponse::MiscSuccess(
         "Games rescan started in background".to_string(),
     )))
-}
-
-// test download RPC, won't be used in prod
-pub async fn test_dl() -> impl IntoResponse {
-    let url = "http://example.com/download"; // Example URL for testing
-
-    StatusCode::OK.into_response()
 }
 
 pub fn admin_router() -> Router {
@@ -727,6 +740,7 @@ pub fn admin_router() -> Router {
                 Err(_) => StatusCode::NOT_FOUND.into_response(),
             }
         })
+        .route("/import/ultranx/{title_id}", get(download_game_test))
         // Fix the middleware layering by using proper syntax
         .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
 }
@@ -851,7 +865,6 @@ pub fn create_router() -> Router {
         .route("/api/base_games/search", get(search_base_game))
         .route("/api/titledb/search", get(search_titledb))
         .route("/api/search", get(search_titles))
-        // .route("/api/download_game_test/{title_id}", get(download_game_test))
         // web ui
         .nest("/admin", admin_router())
         // user things

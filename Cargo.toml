@@ -66,3 +66,4 @@ oneio = { version = "0.17.0", default-features = false, features = ["remote", "r
 tempfile = "3.19.1"
 async_zip = { version = "0.0.17", features = ["full"] }
 ulid = { version = "1.2.1", features = ["serde"] }
+urlencoding = "2.1.3"

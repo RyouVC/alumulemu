@@ -13,7 +13,6 @@ use cron::Schedule;
 use db::init_database;
 use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -181,7 +180,28 @@ async fn schedule_titledb_imports(config: config::Config) -> Result<()> {
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
+    let tracing_builder = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                // .add_directive("alumulemu=info".parse().unwrap())
+                .add_directive("tungstenite=error".parse().unwrap())
+                .add_directive("tokio_tungstenite=error".parse().unwrap())
+                .add_directive("hyper=error".parse().unwrap())
+                .add_directive("reqwest=error".parse().unwrap())
+                .add_directive("tokio=error".parse().unwrap())
+                .add_directive("tower_http=debug".parse().unwrap())
+                
+        )
+        .with_file(true)
+        .with_line_number(true)
+        .with_thread_ids(true)
+        .with_target(false);
+
+    #[cfg(debug_assertions)]
+    tracing_builder.pretty().init();
+
+    #[cfg(not(debug_assertions))]
+    tracing_builder.compact().init();
     color_eyre::install().unwrap();
 
     let config = config::config();

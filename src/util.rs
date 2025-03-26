@@ -17,9 +17,8 @@ pub fn tempfile() -> File {
 pub fn cache_dir() -> PathBuf {
     let cache_dir = crate::config::config().backend_config.cache_dir;
     // create if not exists
-    let path = dirs::cache_dir().unwrap().join("alumulemu");
-    std::fs::create_dir_all(&path).unwrap();
-    path
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    cache_dir.into()
 }
 
 pub fn titledb_cache_dir() -> PathBuf {
