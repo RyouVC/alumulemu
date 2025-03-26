@@ -3,8 +3,8 @@
     <div v-if="metadata" class="fixed inset-0 h-screen bg-center bg-no-repeat bg-cover brightness-50 blur-xl opacity-70"
         :style="{ backgroundImage: `url(${metadata.bannerUrl})` }"></div>
 
-    <div class="relative z-10 stack">
-        <div v-if="metadata" class="w-full">
+    <div class="relative z-10">
+        <div v-if="metadata" class="w-full px-4 md:px-8 lg:px-16">
             <div class="h-48"></div> <!-- Increased spacing to show more background -->
 
             <!-- Floating elements container -->
@@ -32,10 +32,11 @@
                 <div class="card w-full bg-base-100 shadow-xl">
                     <!-- Download section - positioned to overlap card -->
                     <div class="absolute z-20 -top-6 right-8 flex flex-col items-end gap-2">
-                        <button @click="downloadGame(selectedDownloadId || metadata.titleId)"
-                            class="btn btn-success btn-wide">
+                        <AluButton @click="downloadGame(selectedDownloadId || metadata.titleId)" level="success"
+                            size="medium" class="shadow-lg shadow-[2px_4px_4px_7px_rgba(0,_0,_0,_0.1)]"
+                            style="width: 100%;">
                             Download
-                        </button>
+                        </AluButton>
                         <select v-if="downloadIds.length > 0" v-model="selectedDownloadId"
                             class="select select-bordered w-full max-w-xs">
                             <option v-for="id in downloadIds" :key="id" :value="id">
@@ -47,18 +48,19 @@
                     <div class="card-body pt-8">
                         <!-- Stats section with left padding -->
                         <div class="w-full pl-64 mb-6">
-                            <div class="stats stats-vertical lg:stats-horizontal shadow max-w-3xl">
+                            <div class="stats stats-vertical lg:stats-horizontal shadow max-w-3xl bg-base-300">
                                 <div class="stat">
-                                    <div class="stat-title">Title ID</div>
-                                    <div class="stat-value text-lg">{{ metadata.titleId }}</div>
+                                    <div class="stat-title text-base-content/70">Title ID</div>
+                                    <div class="stat-value text-lg font-mono text-base-content">{{ metadata.titleId }}
+                                    </div>
                                 </div>
                                 <div class="stat">
-                                    <div class="stat-title">Release Date</div>
-                                    <div class="stat-value text-lg">{{
+                                    <div class="stat-title text-base-content/70">Release Date</div>
+                                    <div class="stat-value text-lg text-base-content">{{
                                         dateFromYYYYMMDD(metadata.releaseDate).toLocaleDateString() }}</div>
                                 </div>
                                 <div class="stat">
-                                    <div class="stat-title">Categories</div>
+                                    <div class="stat-title text-base-content/70">Categories</div>
                                     <div class="stat-value text-lg">
                                         <div class="flex flex-wrap gap-1">
                                             <div v-for="(category, index) in metadata.category" :key="index"
@@ -71,10 +73,8 @@
                             </div>
                         </div>
 
-                        <!-- Description section without padding -->
-                        <div>
-                            <h2 class="text-xl font-semibold mb-2">Description</h2>
-                            <p class="whitespace-pre-line">{{ metadata.description }}</p>
+                        <div id="description" class="whitespace-pre-line">
+                            <p class="whitespace-pre-line text-base-content/70">{{ metadata.description }}</p>
                         </div>
                     </div>
                 </div>
@@ -86,8 +86,11 @@
 
 <script>
 import { dateFromYYYYMMDD } from '../util.js';
-
+import AluButton from './AluButton.vue';
 export default {
+    components: {
+        AluButton
+    },
     data() {
         return {
             titleId: null,

@@ -86,7 +86,7 @@ export default {
             };
             
             // Text color for solid variant should be white
-            const textColorClass = this.variant === 'solid' ? 'text-white' : '';
+            const textColorClass = this.variant === 'solid' ? '' : '';
             
             // Full width overrides width set by size
             const widthClass = this.fullWidth ? 'w-full' : '';
