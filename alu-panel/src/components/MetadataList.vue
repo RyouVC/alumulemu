@@ -79,18 +79,7 @@
                                 <div class="stat" id="nutrition-rating">
                                     <div class="stat-title text-base-content/70">Rating</div>
                                     <div class="text-lg stat-value text-base-content">
-                                        <div class="flex items-center">
-                                            <div class="badge badge-lg" :class="{
-                                                'badge-error': metadata.rating >= 18,
-                                                'badge-warning': metadata.rating >= 13 && metadata.rating < 18,
-                                                'badge-info': metadata.rating >= 10 && metadata.rating < 13,
-                                                'badge-success': metadata.rating < 10,
-                                                'badge-neutral': metadata.rating === undefined || metadata.rating === null
-                                            }">
-                                                {{ metadata.rating !== undefined && metadata.rating !== null ?
-                                                    metadata.rating + '+' : 'N/A' }}
-                                            </div>
-                                        </div>
+                                        <AgeRating :rating="metadata.rating" />
                                     </div>
                                 </div>
                             </div>
@@ -139,12 +128,21 @@
                             </div>
                         </div>
 
-                        <div id="intro" class="whitespace-pre-line">
-                            <p class="whitespace-pre-line text-base-content/70">{{ metadata.intro }}</p>
+                        <div id="intro" class="my-4">
+                            <blockquote class="px-4 py-3 text-lg italic border-l-4 rounded-r-lg border-primary bg-base-200/50">
+                                {{ metadata.intro }}
+                            </blockquote>
                         </div>
 
                         <div id="description" class="whitespace-pre-line">
                             <p class="whitespace-pre-line text-base-content/70">{{ metadata.description }}</p>
+                        </div>
+
+                        <div id="test-alulist">
+                            <AluList>
+                                <AluListRow :game="metadata">
+                                </AluListRow>
+                            </AluList>
                         </div>
 
                         <div class="pt-4" id="extra-info-container">
@@ -182,7 +180,9 @@
                                 <div class="shadow stats stats-vertical bg-base-300">
                                     <div class="stat" v-if="metadata.ageRating">
                                         <div class="stat-title text-base-content/70">Age Rating</div>
-                                        <div class="text-lg stat-value">{{ metadata.ageRating }}</div>
+                                        <div class="text-lg stat-value">
+                                            <AgeRating :age-rating="metadata.ageRating" />
+                                        </div>
                                     </div>
                                     <div class="stat" v-if="metadata.ratingContent && metadata.ratingContent.length">
                                         <div class="stat-title text-base-content/70">Content Warnings</div>
@@ -211,10 +211,17 @@
 
 <script>
 import { dateFromYYYYMMDD } from '../util.js';
+import AluList from './alu/AluList.vue';
+import AluListRow from './alu/AluListRow.vue';
 import AluButton from './AluButton.vue';
+import AgeRating from './alu/AgeRating.vue';
+
 export default {
     components: {
-        AluButton
+        AluButton,
+        AluListRow,
+        AluList,
+        AgeRating
     },
     data() {
         return {
