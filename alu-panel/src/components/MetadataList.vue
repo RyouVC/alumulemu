@@ -35,8 +35,8 @@
                         <AluButton @click="downloadGame(selectedDownloadId || metadata.titleId)" level="success"
                             size="medium" class="shadow-lg shadow-success/10" style="width: 100%;">
                             <div class="flex items-center w-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                    stroke="currentColor" class="mr-2 size-6">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.5" stroke="currentColor" class="mr-2 size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                                 </svg>
@@ -55,17 +55,17 @@
                         <!-- Stats section with left padding -->
                         <div class="w-full pl-64 mb-6">
                             <div class="max-w-3xl shadow stats stats-vertical lg:stats-horizontal bg-base-300">
-                                <div class="stat">
+                                <div class="stat" id="nutrition-titleid">
                                     <div class="stat-title text-base-content/70">Title ID</div>
                                     <div class="font-mono text-lg stat-value text-base-content">{{ metadata.titleId }}
                                     </div>
                                 </div>
-                                <div class="stat">
+                                <div class="stat" id="nutrition-release-date">
                                     <div class="stat-title text-base-content/70">Release Date</div>
                                     <div class="text-lg stat-value text-base-content">{{
                                         dateFromYYYYMMDD(metadata.releaseDate).toLocaleDateString() }}</div>
                                 </div>
-                                <div class="stat">
+                                <div class="stat" id="nutrition-categories">
                                     <div class="stat-title text-base-content/70">Categories</div>
                                     <div class="text-lg stat-value">
                                         <div class="flex flex-wrap gap-1">
@@ -76,12 +76,129 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="stat" id="nutrition-rating">
+                                    <div class="stat-title text-base-content/70">Rating</div>
+                                    <div class="text-lg stat-value text-base-content">
+                                        <div class="flex items-center">
+                                            <div class="badge badge-lg" :class="{
+                                                'badge-error': metadata.rating >= 18,
+                                                'badge-warning': metadata.rating >= 13 && metadata.rating < 18,
+                                                'badge-info': metadata.rating >= 10 && metadata.rating < 13,
+                                                'badge-success': metadata.rating < 10,
+                                                'badge-neutral': metadata.rating === undefined || metadata.rating === null
+                                            }">
+                                                {{ metadata.rating !== undefined && metadata.rating !== null ?
+                                                    metadata.rating + '+' : 'N/A' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+
+                        <!-- Screenshots Carousel -->
+                        <div v-if="metadata.screenshots && metadata.screenshots.length > 0" class="w-full mb-8">
+                            <div class="relative">
+                                <div class="w-full overflow-hidden rounded-lg shadow-lg carousel">
+                                    <div class="flex w-full carousel-item">
+                                        <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                            <div v-for="(screenshot, index) in visibleScreenshots" :key="index"
+                                                class="relative overflow-hidden rounded-lg shadow-md aspect-video">
+                                                <img :src="screenshot" class="object-cover w-full h-full"
+                                                    @click="openFullScreenImage(screenshot)" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="absolute inset-0 flex items-center justify-between p-4 pointer-events-none">
+                                    <button @click="previousScreenshotSet"
+                                        class="pointer-events-auto btn btn-circle bg-base-300/70 hover:bg-base-300">❮</button>
+                                    <button @click="nextScreenshotSet"
+                                        class="pointer-events-auto btn btn-circle bg-base-300/70 hover:bg-base-300">❯</button>
+                                </div>
+
+                                <div class="flex justify-center w-full gap-2 py-2 mt-2">
+                                    <span class="text-sm opacity-75">
+                                        Showing {{ currentSetIndex * imagesPerSet + 1 }}-{{ Math.min(currentSetIndex *
+                                            imagesPerSet + imagesPerSet, metadata.screenshots.length) }}
+                                        of {{ metadata.screenshots.length }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Fullscreen image modal -->
+                            <div v-if="fullScreenImage"
+                                class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90"
+                                @click="fullScreenImage = null">
+                                <div class="relative max-w-5xl max-h-screen p-4">
+                                    <img :src="fullScreenImage" class="object-contain max-w-full max-h-[90vh]" />
+                                    <button class="absolute top-4 right-4 btn btn-circle btn-sm"
+                                        @click.stop="fullScreenImage = null">✕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="intro" class="whitespace-pre-line">
+                            <p class="whitespace-pre-line text-base-content/70">{{ metadata.intro }}</p>
                         </div>
 
                         <div id="description" class="whitespace-pre-line">
                             <p class="whitespace-pre-line text-base-content/70">{{ metadata.description }}</p>
                         </div>
+
+                        <div class="pt-4" id="extra-info-container">
+                            <h2 class="pb-4 text-2xl font-bold">Additional Information</h2>
+
+                            <div class="grid gap-4 md:grid-cols-3">
+                                <!-- Players -->
+                                <div class="shadow stats stats-vertical bg-base-300" v-if="metadata.numberOfPlayers">
+                                    <div class="stat">
+                                        <div class="stat-title text-base-content/70">Players</div>
+                                        <div class="text-lg stat-value">
+                                            {{ metadata.numberOfPlayers > 1 ? `1-${metadata.numberOfPlayers}` :
+                                                metadata.numberOfPlayers }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Languages -->
+                                <div class="shadow stats stats-vertical bg-base-300"
+                                    v-if="metadata.languages && metadata.languages.length">
+                                    <div class="stat">
+                                        <div class="stat-title text-base-content/70">Languages</div>
+                                        <div class="text-lg stat-value">
+                                            <div class="flex flex-wrap gap-1">
+                                                <div v-for="(language, i) in metadata.languages" :key="i"
+                                                    class="badge badge-outline badge-primary">
+                                                    {{ getLanguageName(language) }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Content Ratings -->
+                                <div class="shadow stats stats-vertical bg-base-300">
+                                    <div class="stat" v-if="metadata.ageRating">
+                                        <div class="stat-title text-base-content/70">Age Rating</div>
+                                        <div class="text-lg stat-value">{{ metadata.ageRating }}</div>
+                                    </div>
+                                    <div class="stat" v-if="metadata.ratingContent && metadata.ratingContent.length">
+                                        <div class="stat-title text-base-content/70">Content Warnings</div>
+                                        <div class="text-lg stat-value">
+                                            <div class="flex flex-wrap gap-1">
+                                                <div v-for="(warning, i) in metadata.ratingContent" :key="i"
+                                                    class="badge badge-outline badge-warning">
+                                                    {{ warning }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -105,10 +222,66 @@ export default {
             metadata: null,
             downloadIds: [],
             selectedDownloadId: "",
+            currentSetIndex: 0,
+            imagesPerSet: 3,
+            fullScreenImage: null,
+            languageMap: {
+                "ja": "Japanese",
+                "en": "English",
+                "fr": "French",
+                "de": "German",
+                "it": "Italian",
+                "es": "Spanish",
+                "zh": "Chinese",
+                "ko": "Korean",
+                "nl": "Dutch",
+                "pt": "Portuguese",
+                "ru": "Russian",
+                "zh-CN": "Chinese (Simplified)",
+                "zh-TW": "Chinese (Traditional)",
+                "en-GB": "English (UK)",
+                "en-US": "English (US)",
+                "es-419": "Spanish (Latin America)",
+                "es-ES": "Spanish (Spain)",
+                "pt-BR": "Portuguese (Brazil)",
+                "pt-PT": "Portuguese (Portugal)",
+                "fr-CA": "French (Canada)",
+                "fr-FR": "French (France)",
+                "da": "Danish",
+                "fi": "Finnish",
+                "nb": "Norwegian",
+                "sv": "Swedish",
+                "cs": "Czech",
+                "hu": "Hungarian",
+                "pl": "Polish",
+                "ro": "Romanian",
+                "tr": "Turkish",
+                "ar": "Arabic",
+                "he": "Hebrew",
+                "th": "Thai",
+                "id": "Indonesian",
+                "vi": "Vietnamese",
+                "el": "Greek",
+                "uk": "Ukrainian",
+            },
         };
+    },
+    computed: {
+        visibleScreenshots() {
+            if (!this.metadata || !this.metadata.screenshots) return [];
+            const start = this.currentSetIndex * this.imagesPerSet;
+            return this.metadata.screenshots.slice(start, start + this.imagesPerSet);
+        },
+        totalSets() {
+            if (!this.metadata || !this.metadata.screenshots) return 0;
+            return Math.ceil(this.metadata.screenshots.length / this.imagesPerSet);
+        }
     },
     methods: {
         dateFromYYYYMMDD,
+        getLanguageName(code) {
+            return this.languageMap[code] || code;
+        },
         async downloadGame(downloadId) {
             try {
                 window.location.href = `/api/get_game/${downloadId}`;
@@ -134,8 +307,38 @@ export default {
                 return [];
             }
         },
+        nextScreenshotSet() {
+            if (this.currentSetIndex < this.totalSets - 1) {
+                this.currentSetIndex++;
+            } else {
+                this.currentSetIndex = 0; // Loop back to start
+            }
+        },
+        previousScreenshotSet() {
+            if (this.currentSetIndex > 0) {
+                this.currentSetIndex--;
+            } else {
+                this.currentSetIndex = this.totalSets - 1; // Loop to end
+            }
+        },
+        openFullScreenImage(imageUrl) {
+            this.fullScreenImage = imageUrl;
+        },
+        updateImagesPerSet() {
+            // Adjust number of images based on screen width
+            if (window.innerWidth < 768) {
+                this.imagesPerSet = 1; // Mobile: 1 image
+            } else if (window.innerWidth < 1024) {
+                this.imagesPerSet = 2; // Tablet: 2 images
+            } else {
+                this.imagesPerSet = 3; // Desktop: 3 images
+            }
+        },
     },
     async created() {
+        this.updateImagesPerSet();
+        window.addEventListener('resize', this.updateImagesPerSet);
+
         this.titleId = this.$route.query.tid;
         if (this.titleId) {
             try {
@@ -161,5 +364,9 @@ export default {
             }
         },
     },
+    unmounted() {
+        // Clean up event listeners
+        window.removeEventListener('resize', this.updateImagesPerSet);
+    }
 };
 </script>
