@@ -80,7 +80,9 @@
                 </div>
             </div>
         </div>
-        <div v-else class="loading loading-spinner loading-lg"></div>
+        <div v-else class="h-screen flex justify-center items-center">
+            <span class="loading loading-spinner loading-lg text-primary"></span>
+        </div>
     </div>
 </template>
 
