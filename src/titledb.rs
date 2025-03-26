@@ -305,10 +305,7 @@ impl Metaview {
         let data: Vec<Metaview> = query.take(0)?;
 
         // Convert Metaview items to titleId strings
-        let title_ids = data
-            .into_iter()
-            .filter_map(|t| t.download_id)
-            .collect();
+        let title_ids = data.into_iter().filter_map(|t| t.download_id).collect();
 
         Ok(title_ids)
     }

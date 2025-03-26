@@ -13,7 +13,7 @@ use ulid::Ulid;
 
 use crate::db::DB;
 
-pub static DOWNLOAD_QUEUE: std::sync::LazyLock<std::sync::Mutex<DownloadQueue>> = 
+pub static DOWNLOAD_QUEUE: std::sync::LazyLock<std::sync::Mutex<DownloadQueue>> =
     std::sync::LazyLock::new(|| std::sync::Mutex::new(DownloadQueue::new()));
 
 /// Represents the progress of a download

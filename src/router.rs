@@ -4,8 +4,8 @@ use crate::backend::user::basic_auth_if_public;
 use crate::backend::user::user_router;
 use crate::db::NspMetadata;
 use crate::games_dir;
-use crate::import::downloader::DownloadQueueItem;
 use crate::import::downloader::DOWNLOAD_QUEUE;
+use crate::import::downloader::DownloadQueueItem;
 use crate::index::{Index, TinfoilResponse};
 
 use crate::titledb::GameFileDataNaive;
@@ -47,7 +47,10 @@ pub struct RescanOptions {
 }
 
 #[tracing::instrument]
-pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions) -> color_eyre::eyre::Result<()> {
+pub async fn update_metadata_from_filesystem(
+    path: &str,
+    options: RescanOptions,
+) -> color_eyre::eyre::Result<()> {
     tracing::info!("Starting full metadata rescan of {}", path);
 
     let rescan = options.rescan;
@@ -57,7 +60,10 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
         Ok(metadata) => metadata,
         Err(e) => {
             tracing::error!("Failed to get existing metadata: {}", e);
-            return Err(color_eyre::eyre::eyre!("Failed to get existing metadata: {}", e));
+            return Err(color_eyre::eyre::eyre!(
+                "Failed to get existing metadata: {}",
+                e
+            ));
         }
     };
 
@@ -130,7 +136,7 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
                 Ok(_) => {
                     processed_files += 1;
                     tracing::debug!("Successfully processed file: {}", file_path_str);
-                },
+                }
                 Err(e) => {
                     failed_files += 1;
                     tracing::error!("Failed to scan file {}: {}", file_path_str, e);
@@ -146,13 +152,16 @@ pub async fn update_metadata_from_filesystem(path: &str, options: RescanOptions)
     let mut deleted_count = 0;
     let mut delete_failed_count = 0;
 
-    for metadata in all_metadata.iter().filter(|m| !found_paths.contains(&m.path)) {
+    for metadata in all_metadata
+        .iter()
+        .filter(|m| !found_paths.contains(&m.path))
+    {
         tracing::info!("Removing metadata for non-existent file: {}", metadata.path);
         match metadata.delete().await {
             Ok(_) => {
                 deleted_count += 1;
                 tracing::debug!("Successfully deleted metadata for: {}", metadata.path);
-            },
+            }
             Err(e) => {
                 delete_failed_count += 1;
                 tracing::error!("Failed to delete metadata for {}: {}", metadata.path, e);
@@ -214,9 +223,7 @@ pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()
                     .iter()
                     .find(|m| m.path == file_path_str)
                     .and_then(|m| m.title_name.clone())
-                    .unwrap_or_else(|| {
-                        game_data.name.trim().trim_end_matches(".nsp").to_string()
-                    });
+                    .unwrap_or_else(|| game_data.name.trim().trim_end_matches(".nsp").to_string());
 
                 let version = game_data.version.unwrap_or_else(|| "v0".to_string());
                 let extension = game_data.extension.unwrap_or_default();
@@ -240,10 +247,7 @@ pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()
                         file_path_str,
                         e
                     );
-                    tokio::time::sleep(tokio::time::Duration::from_millis(
-                        RETRY_DELAY_MS,
-                    ))
-                    .await;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
                     continue;
                 }
 
@@ -357,7 +361,7 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
                             .unwrap_or_else(|| {
                                 game_data.name.trim().trim_end_matches(".nsp").to_string()
                             });
-                        
+
                         let extension = game_data.extension.unwrap_or_default();
                         let version = game_data.version.unwrap_or_else(|| "v0".to_string());
                         let download_id = format_download_id(&title_id, &version, &extension);
@@ -458,10 +462,16 @@ pub async fn download_file(
 
     tracing::debug!("Looking for download ID: {}", download_id_param);
 
-    let all_metadata = NspMetadata::get_from_download_id(&download_id_param).await.map_err(|err| {
-        tracing::error!("Failed to retrieve metadata for download ID {}: {}", download_id_param, err);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let all_metadata = NspMetadata::get_from_download_id(&download_id_param)
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                "Failed to retrieve metadata for download ID {}: {}",
+                download_id_param,
+                err
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     // Check that we found the metadata entry
     let metadata_entry = match all_metadata {
@@ -513,8 +523,6 @@ pub async fn download_file(
     Ok(response)
 }
 
-
-
 pub async fn download_game_test(
     HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -522,11 +530,11 @@ pub async fn download_game_test(
     let mut queue = DOWNLOAD_QUEUE.lock().unwrap();
     let importer = crate::import::not_ultranx::NotUltranxImporter::new();
     let title = importer.get_title(&title_id_param).await.unwrap();
-    
+
     let url = title.unwrap().full_pkg_url.unwrap();
-    
+
     // let item = DownloadQueueItem::new(url, title_id_param.clone());
-    
+
     // todo!()
     Ok(Json(serde_json::json!({})))
 }
@@ -574,7 +582,6 @@ pub async fn title_meta_base_game(
 
     Ok(Json(title))
 }
-
 
 /// Get all alternate (non-base) versions of a title
 pub async fn get_download_ids(HttpPath(title_id): HttpPath<String>) -> AlumRes<Json<Vec<String>>> {
@@ -643,7 +650,6 @@ pub async fn list_grouped_by_titleid(
 /// List base games only (games that end with 000)
 #[tracing::instrument]
 pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
-
     let base_games = crate::titledb::Metaview::get_base_games()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -653,21 +659,19 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
 
     Ok(Json(base_games).into_response())
 }
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use once_cell::sync::Lazy;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Global flag to track if a rescan job is already running
 static RESCAN_IN_PROGRESS: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
 pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
     // Try to set the flag - returns false if already set
-    if RESCAN_IN_PROGRESS.compare_exchange(
-        false, 
-        true, 
-        Ordering::SeqCst, 
-        Ordering::SeqCst
-    ).is_err() {
+    if RESCAN_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         tracing::info!("Rescan already in progress, ignoring new request");
         return Ok(Json(TinfoilResponse::MiscSuccess(
             "A games rescan is already in progress".to_string(),
@@ -707,7 +711,7 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
     )))
 }
 
-// test download RPC, won't be used in prod 
+// test download RPC, won't be used in prod
 pub async fn test_dl() -> impl IntoResponse {
     let url = "http://example.com/download"; // Example URL for testing
 
@@ -727,12 +731,12 @@ pub fn admin_router() -> Router {
         .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
 }
 
-pub async fn search_titledb(query: Query<SearchQuery>) -> AlumRes<Json<Vec<crate::titledb::Title>>> {
-
+pub async fn search_titledb(
+    query: Query<SearchQuery>,
+) -> AlumRes<Json<Vec<crate::titledb::Title>>> {
     tracing::debug!(?query, "Searching for title with query");
 
-    let search = crate::titledb::Title::search(&query)
-        .await?;
+    let search = crate::titledb::Title::search(&query).await?;
 
     Ok(Json(search))
 }
@@ -838,7 +842,10 @@ pub fn create_router() -> Router {
             "/api/title_meta/{title_id}/base_game",
             get(title_meta_base_game),
         )
-        .route("/api/title_meta/{title_id}/download_ids", get(get_download_ids))
+        .route(
+            "/api/title_meta/{title_id}/download_ids",
+            get(get_download_ids),
+        )
         .route("/api/grouped/{title_id}", get(list_grouped_by_titleid))
         .route("/api/base_games", get(list_base_games))
         .route("/api/base_games/search", get(search_base_game))

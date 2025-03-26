@@ -22,10 +22,11 @@ impl NspMetadata {
     pub async fn get_by_path(path: &str) -> surrealdb::Result<Option<Self>> {
         DB.select(("nsp_metadata", path)).await
     }
-    
+
     #[tracing::instrument(level = "debug")]
     pub async fn get_from_download_id(download_id: &str) -> surrealdb::Result<Option<Self>> {
-        let mut query = DB.query("SELECT * FROM nsp_metadata WHERE download_id = $download_id")
+        let mut query = DB
+            .query("SELECT * FROM nsp_metadata WHERE download_id = $download_id")
             .bind(("download_id", download_id.to_string()))
             .await?;
 

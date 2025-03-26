@@ -1,12 +1,12 @@
 mod backend;
 mod config;
 mod db;
+mod import;
 mod index;
 mod nsp;
 mod router;
 mod titledb;
 mod util;
-mod import;
 
 use color_eyre::Result;
 use cron::Schedule;
@@ -27,8 +27,6 @@ pub fn games_dir() -> String {
     tracing::debug!("Games directory: {}", config.backend_config.rom_dir);
     config.backend_config.rom_dir
 }
-
-
 
 pub async fn romdir_inotify() {
     if let Err(e) = watch_filesystem_for_changes(&games_dir()).await {
@@ -80,10 +78,10 @@ async fn import_titledb(lang: &str, region: &str) -> Result<()> {
         // Force import if table is empty, but don't re-download
         let titledb_file = std::fs::File::open(&path).unwrap();
 
-        
         let start = std::time::Instant::now();
-        let result = TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
-            .await;
+        let result =
+            TitleDBImport::from_json_reader_streaming(titledb_file, &format!("{region}_{lang}"))
+                .await;
         let duration = start.elapsed();
         tracing::info!("TitleDB import for {region}_{lang} took: {:?}", duration);
         let _ = result;

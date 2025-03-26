@@ -11,7 +11,7 @@
             <div class="relative">
                 <!-- Game icon -->
                 <img :src="metadata.iconUrl" :alt="metadata.name"
-                    class="absolute z-20 -top-24 left-8 w-48 h-48 rounded-lg shadow-xl object-cover" />
+                    class="absolute z-20 object-cover w-48 h-48 rounded-lg shadow-xl -top-24 left-8 ring-4 shadow-base-content/20" />
 
                 <!-- Title and basic info -->
                 <div class="absolute z-20 -top-24 left-64">
@@ -29,39 +29,45 @@
                 </div>
 
                 <!-- Dark card container -->
-                <div class="card w-full bg-base-100 shadow-xl">
+                <div class="w-full shadow-xl card bg-base-100">
                     <!-- Download section - positioned to overlap card -->
-                    <div class="absolute z-20 -top-6 right-8 flex flex-col items-end gap-2">
+                    <div class="absolute z-20 flex flex-col items-end gap-2 -top-6 right-8">
                         <AluButton @click="downloadGame(selectedDownloadId || metadata.titleId)" level="success"
-                            size="medium" class="shadow-lg shadow-[2px_4px_4px_7px_rgba(0,_0,_0,_0.1)]"
-                            style="width: 100%;">
-                            Download
+                            size="medium" class="shadow-lg shadow-success/10" style="width: 100%;">
+                            <div class="flex items-center w-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor" class="mr-2 size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                                <span class="flex-1 text-center">Download</span>
+                            </div>
                         </AluButton>
                         <select v-if="downloadIds.length > 0" v-model="selectedDownloadId"
-                            class="select select-bordered w-full max-w-xs">
+                            class="w-full max-w-xs select select-bordered">
                             <option v-for="id in downloadIds" :key="id" :value="id">
                                 {{ id }}
                             </option>
                         </select>
                     </div>
 
-                    <div class="card-body pt-8">
+                    <div class="pt-8 card-body">
                         <!-- Stats section with left padding -->
                         <div class="w-full pl-64 mb-6">
-                            <div class="stats stats-vertical lg:stats-horizontal shadow max-w-3xl bg-base-300">
+                            <div class="max-w-3xl shadow stats stats-vertical lg:stats-horizontal bg-base-300">
                                 <div class="stat">
                                     <div class="stat-title text-base-content/70">Title ID</div>
-                                    <div class="stat-value text-lg font-mono text-base-content">{{ metadata.titleId }}
+                                    <div class="font-mono text-lg stat-value text-base-content">{{ metadata.titleId }}
                                     </div>
                                 </div>
                                 <div class="stat">
                                     <div class="stat-title text-base-content/70">Release Date</div>
-                                    <div class="stat-value text-lg text-base-content">{{
+                                    <div class="text-lg stat-value text-base-content">{{
                                         dateFromYYYYMMDD(metadata.releaseDate).toLocaleDateString() }}</div>
                                 </div>
                                 <div class="stat">
                                     <div class="stat-title text-base-content/70">Categories</div>
-                                    <div class="stat-value text-lg">
+                                    <div class="text-lg stat-value">
                                         <div class="flex flex-wrap gap-1">
                                             <div v-for="(category, index) in metadata.category" :key="index"
                                                 class="badge badge-outline badge-accent">
@@ -80,7 +86,7 @@
                 </div>
             </div>
         </div>
-        <div v-else class="h-screen flex justify-center items-center">
+        <div v-else class="flex items-center justify-center h-screen">
             <span class="loading loading-spinner loading-lg text-primary"></span>
         </div>
     </div>
