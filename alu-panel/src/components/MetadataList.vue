@@ -39,34 +39,27 @@
 
                 <div id="nutrition-label" class="absolute z-20 text-white left-64 top-6">
                     <div class="overflow-x-auto shadow-md bg-base-100 rounded-box">
-                        <table class="table w-full table-compact">
-                            <tbody>
-                                <tr>
-                                    <td class="w-1/4 px-2 py-1 font-bold">Title ID</td>
-                                    <td class="px-2 py-1">{{ metadata.titleId }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="w-1/4 px-2 py-1 font-bold">Release Date</td>
-                                    <td class="px-2 py-1">{{
-                                        dateFromYYYYMMDD(
-                                            metadata.releaseDate,
-                                        ).toLocaleDateString()
-                                    }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="w-1/4 px-2 py-1 font-bold">Categories</td>
-                                    <td class="px-2 py-1">
-                                        <div class="flex flex-wrap gap-1">
-                                            <div v-for="(category, index) in metadata.category" :key="index" class="badge badge-badge-outline badge-accent">
-                                                {{ category }}
-                                            </div>
+                        <div class="stats stats-vertical lg:stats-horizontal shadow">
+                            <div class="stat">
+                                <div class="stat-title">Title ID</div>
+                                <div class="stat-value text-lg">{{ metadata.titleId }}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-title">Release Date</div>
+                                <div class="stat-value text-lg">{{ dateFromYYYYMMDD(metadata.releaseDate).toLocaleDateString() }}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-title">Categories</div>
+                                <div class="stat-value text-lg">
+                                    <div class="flex flex-wrap gap-1">
+                                        <div v-for="(category, index) in metadata.category" :key="index" class="badge badge-outline badge-accent">
+                                            {{ category }}
                                         </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
                 </div>
 
                 <div class="bg-gray-900 min-h-[70vh] relative pt-8 rounded-lg">
