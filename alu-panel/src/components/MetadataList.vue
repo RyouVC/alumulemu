@@ -23,7 +23,7 @@
                         <span>{{ metadata.publisher }}</span>
                         <span class="opacity-50">{{
                             metadata.releaseDate.slice(0, 4)
-                            }}</span>
+                        }}</span>
                         <span class="opacity-50">|</span>
                         <span>{{ formatFileSize(metadata.size) }}</span>
                     </div>
@@ -280,7 +280,7 @@ warning, i
 
 <script>
 import { dateFromYYYYMMDD, formatFileSize, getLanguageName } from "../util.js";
-import { TitleMetadata } from "../title.ts";
+import { TitleMetadata } from "@/utils/title.ts";
 import AluList from "./alu/AluList.vue";
 import AluListRow from "./alu/AluListRow.vue";
 import AluButton from "./AluButton.vue";

@@ -26,6 +26,9 @@ pub enum ImportError {
     #[error("Request error: {0}")]
     RequestError(#[from] reqwest::Error),
 
+    #[error("Game Not Found in importer source")]
+    GameNotFound,
+
     #[error("Zip error: {0}")]
     ZipError(#[from] async_zip::error::ZipError),
 

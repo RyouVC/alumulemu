@@ -20,7 +20,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { formatFileSize } from '../util.js';
+import { formatFileSize } from '@/util';
 
 const props = defineProps({
     game: {

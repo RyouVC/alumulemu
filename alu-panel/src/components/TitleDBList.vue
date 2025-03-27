@@ -68,7 +68,7 @@ import { ref, onMounted, watch } from "vue";
 import GameTitleButton from "./GameTitleButton.vue";
 import AluList from "./alu/AluList.vue";
 import AluListRow from "./alu/AluListRow.vue";
-import { SearchQuery, TitleMetadata } from '../title.ts';
+import { SearchQuery, TitleMetadata } from '@/utils/title.ts';
 
 const isLoading = ref(false);
 const titles = ref([]);

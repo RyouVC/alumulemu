@@ -97,9 +97,7 @@ impl IdImporter for NotUltranxImporter {
         let options = options.unwrap_or_default();
         let title = self.get_title(id).await?;
         if title.is_none() {
-            return Err(super::ImportError::Other(color_eyre::eyre::eyre!(
-                "Title not found"
-            )));
+            return Err(super::ImportError::GameNotFound);
         }
         match options.download_type {
             NotUltranxDownloadType::Base => {

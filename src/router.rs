@@ -146,7 +146,7 @@ pub async fn update_metadata_from_filesystem(
             }
         } else {
             skipped_files += 1;
-            tracing::debug!("Skipped file (already up to date): {}", file_path_str);
+            tracing::trace!("Skipped file (already up to date): {}", file_path_str);
         }
     }
 
@@ -525,33 +525,42 @@ pub async fn download_file(
     Ok(response)
 }
 
-pub async fn download_game_test(
+pub async fn download_game_ultranx(
     HttpPath(title_id_param): HttpPath<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("Downloading game test for title ID: {}", title_id_param);
 
     let importer = crate::import::not_ultranx::NotUltranxImporter::new();
-    let import = importer
-        .import_by_id(&title_id_param.clone(), None)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to import game: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let import_result = importer.import_by_id(&title_id_param.clone(), None).await;
 
-    tokio::spawn(async move {
-        if let Err(e) = import.import().await {
-            tracing::error!("Failed to import game: {}", e);
+    match import_result {
+        Ok(import) => {
+            tokio::spawn(async move {
+                if let Err(e) = import.import().await {
+                    tracing::error!("Failed to import game: {}", e);
+                }
+
+                // start rescan
+                let _ = trigger_rescan(Default::default()).await;
+            });
+
+            Ok(Json(serde_json::json!({
+                "status": "success",
+                "message": "Download added to queue"
+            }))
+            .into_response())
         }
+        Err(e) => {
+            let error_msg = e.to_string();
+            tracing::error!("Failed to import game: {}", error_msg);
 
-        // start rescan
-        let _ = trigger_rescan(Default::default()).await;
-    });
-
-    Ok(Json(serde_json::json!({
-        "status": "success",
-        "message": "Download added to queue"
-    })))
+            Ok(Json(serde_json::json!({
+                "status": "error",
+                "message": error_msg
+            }))
+            .into_response())
+        }
+    }
 }
 
 // todo: create precomputed view for this
@@ -740,7 +749,7 @@ pub fn admin_router() -> Router {
                 Err(_) => StatusCode::NOT_FOUND.into_response(),
             }
         })
-        .route("/import/ultranx/{title_id}", get(download_game_test))
+        .route("/import/ultranx/{title_id}", get(download_game_ultranx))
         // Fix the middleware layering by using proper syntax
         .layer(axum::middleware::from_fn(crate::backend::user::basic_auth))
 }
