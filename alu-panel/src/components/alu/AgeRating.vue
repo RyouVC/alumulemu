@@ -7,6 +7,19 @@
 </template>
 
 <script>
+
+function esrb_to_rating(esrb) {
+
+    const ratings = {
+        'E': 0,
+        'E10+': 10,
+        'T': 13,
+        'M': 17,
+        'AO': 18
+    };
+    return ratings[esrb] || null;
+}
+
 export default {
     props: {
         // Numeric age rating (e.g., 18, 13)
@@ -28,13 +41,21 @@ export default {
     },
     computed: {
         badgeClass() {
-            if (this.rating !== null) {
+            // Get effective rating - either directly from props or derived from ESRB
+            let effectiveRating = this.rating;
+
+            // If no direct rating but we have an age rating string, try to convert it
+            if (effectiveRating === null && this.ageRating) {
+                effectiveRating = esrb_to_rating(this.ageRating);
+            }
+
+            if (effectiveRating !== null) {
                 return {
-                    'badge-error': this.rating >= 18,
-                    'badge-warning': this.rating >= 13 && this.rating < 18,
-                    'badge-info': this.rating >= 10 && this.rating < 13,
-                    'badge-success': this.rating < 10,
-                    'badge-neutral': this.rating === undefined || this.rating === null,
+                    'badge-error': effectiveRating >= 18,
+                    'badge-warning': effectiveRating >= 13 && effectiveRating < 18,
+                    'badge-info': effectiveRating >= 10 && effectiveRating < 13,
+                    'badge-success': effectiveRating < 10,
+                    'badge-neutral': effectiveRating === undefined || effectiveRating === null,
                     [`badge-${this.size}`]: this.size !== 'lg'
                 };
             }
@@ -47,7 +68,8 @@ export default {
             }
             // If we have a text-based rating, display it
             if (this.ageRating) {
-                return this.ageRating;
+                const numericRating = esrb_to_rating(this.ageRating);
+                return numericRating !== null ? `${numericRating}+` : this.ageRating;
             }
             // Default
             return 'N/A';
