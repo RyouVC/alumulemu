@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libclang-dev \
+    sccache \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS build
@@ -15,6 +16,11 @@ FROM base AS build
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup install 1.85.1
+
+# Configure Rust to use sccache
+ENV RUSTC_WRAPPER=/usr/bin/sccache
+ENV SCCACHE_DIR=/sccache
+ENV SCCACHE_CACHE_SIZE=5G
 
 # install node
 RUN curl -sL https://deb.nodesource.com/setup_23.x | bash 
@@ -26,11 +32,15 @@ RUN apt-get install -y nodejs
 RUN corepack enable
 RUN corepack prepare pnpm@latest --activate
 
-COPY . /app
-WORKDIR /app
-
 # Build the project
-RUN cargo build --release
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,target=/sccache cargo build --release
+
+# Frontend build
+WORKDIR /app/alu-panel
+RUN pnpm install
+RUN pnpm build
 
 FROM base AS runtime
 
@@ -47,7 +57,6 @@ ENV ALU_PROD_KEYS="/keys/prod.keys"
 ENV ALU_TITLE_KEYS="/keys/title.keys"
 ENV ALU_HOST="0.0.0.0:3000"
 ENV ALU_CACHE_DIR="/var/cache/alumulemu"
-
 
 EXPOSE 3000
 
