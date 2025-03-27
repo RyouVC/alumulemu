@@ -36,10 +36,15 @@
             <slot name="actions">
                 <div class="relative">
                     <details class="dropdown dropdown-end" ref="dropdownMenu">
-                        <summary class="btn btn-primary btn-lg">Import</summary>
+                        <summary class="btn btn-primary btn-lg">
+                            <!-- Show loading spinner when importing -->
+                            <span v-if="isImporting" class="loading loading-spinner loading-md"></span>
+                            <span v-else>Import</span>
+                        </summary>
                         <ul class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow-md">
                             <li v-for="(label, key) in importers" :key="key">
-                                <a @click.stop="handleImportOption(key)">
+                                <a @click.stop="handleImportOption(key)"
+                                    :class="{ 'opacity-50 cursor-not-allowed': isImporting }" :disabled="isImporting">
                                     {{ label }}
                                 </a>
                             </li>
@@ -125,6 +130,9 @@ const toastMessage = ref("");
 const toastType = ref("alert-info");
 const toastTimeout = ref(null);
 
+// Loading state
+const isImporting = ref(false);
+
 const formattedSize = computed(() => {
     return formatFileSize(props.game.size);
 });
@@ -176,24 +184,39 @@ const showToastNotification = (message, type = "alert-info", duration = 3000) =>
  * @param {Object} gameMetadata - The game metadata object
  */
 const handleUltraNXImport = async (gameMetadata) => {
+    if (isImporting.value) return; // Don't allow multiple simultaneous imports
+
+    isImporting.value = true;
+
     try {
         const result = await importGameUltraNX(gameMetadata);
 
-        // Show toast with the message from the response
-        if (result && result.message) {
-            showToastNotification(result.message, "alert-success");
+        // Check if it's an error or success based on the status field
+        if (result && result.status === "error") {
+            // It's an error, show error toast with message
+            showToastNotification(result.message || "Import failed", "alert-error");
         } else {
-            showToastNotification("Import successful", "alert-success");
+            // It's a success, show success toast with message
+            showToastNotification(
+                result && result.message ? result.message : "Import successful",
+                "alert-success"
+            );
         }
 
         emitImport("ultranx", result);
     } catch (error) {
         console.error("Error importing from UltraNX:", error);
+        // Use alert-error class to make error toasts appear red
         showToastNotification("Error importing from UltraNX", "alert-error");
+    } finally {
+        isImporting.value = false;
     }
 };
 
 const handleImportOption = (key) => {
+    // Don't allow actions while importing
+    if (isImporting.value) return;
+
     // Close dropdown when opening any dialog
     if (dropdownMenu.value) {
         dropdownMenu.value.removeAttribute("open");
