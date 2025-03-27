@@ -102,20 +102,61 @@ pub fn download_path() -> PathBuf {
 }
 
 pub enum ImportSource {
+    /// A single local file to import
     Local(PathBuf),
-    /// A local archive file
+    /// A local archive file that will be extracted
     LocalArchive(PathBuf),
+    /// A local directory containing files to import
     LocalDir(PathBuf),
+    /// (Not implemented) Generic remote import
     Remote,
+    /// A remote file accessed via HTTP
     RemoteHttp(String),
+    /// A remote archive file accessed via HTTP that will be extracted
     RemoteHttpArchive(String),
+    /// (Not implemented) Import from a repository
     Repository,
 }
+
 impl ImportSource {
+    /// Creates a new Local import source
+    pub fn new_local(path: impl Into<PathBuf>) -> Self {
+        Self::Local(path.into())
+    }
+
+    /// Creates a new LocalArchive import source
+    pub fn new_local_archive(path: impl Into<PathBuf>) -> Self {
+        Self::LocalArchive(path.into())
+    }
+
+    /// Creates a new LocalDir import source
+    pub fn new_local_dir(path: impl Into<PathBuf>) -> Self {
+        Self::LocalDir(path.into())
+    }
+
+    /// Creates a new RemoteHttp import source
+    pub fn new_remote_http(url: impl Into<String>) -> Self {
+        Self::RemoteHttp(url.into())
+    }
+
+    /// Creates a new RemoteHttpArchive import source
+    pub fn new_remote_http_archive(url: impl Into<String>) -> Self {
+        Self::RemoteHttpArchive(url.into())
+    }
+
     pub async fn process(&self) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
         match self {
             ImportSource::Local(path) => Ok((vec![path.to_path_buf()], None)),
-            ImportSource::LocalArchive(path) => self.extract_archive(path).await,
+            ImportSource::LocalArchive(path) => {
+                let result = self.extract_archive(path).await?;
+                // Delete the archive after successful extraction
+                if tokio::fs::remove_file(path).await.is_err() {
+                    debug!(archive = ?path, "Failed to remove archive file after extraction");
+                } else {
+                    info!(archive = ?path, "Removed archive file after successful extraction");
+                }
+                Ok(result)
+            }
             ImportSource::LocalDir(path) => {
                 let walker = jwalk::WalkDir::new(path);
                 let files: Vec<PathBuf> = walker
@@ -132,9 +173,21 @@ impl ImportSource {
             }
             ImportSource::RemoteHttpArchive(url) => {
                 let path = Self::download_http(url).await?;
-                self.extract_archive(&path).await
+                let result = self.extract_archive(&path).await?;
+                // Delete the downloaded archive after successful extraction
+                if tokio::fs::remove_file(&path).await.is_err() {
+                    debug!(archive = ?path, "Failed to remove downloaded archive file after extraction");
+                } else {
+                    info!(archive = ?path, "Removed downloaded archive file after successful extraction");
+                }
+                Ok(result)
             }
-            _ => todo!(),
+            ImportSource::Remote => unimplemented!(
+                "Generic Remote import source not implemented, this should be a generic remote import, but the details are not yet defined"
+            ),
+            ImportSource::Repository => unimplemented!(
+                "Repository import source not implemented, This should take in a Tinfoil index"
+            ),
         }
     }
 
@@ -146,7 +199,7 @@ impl ImportSource {
         let mut handle = {
             // Lock is acquired here
             let mut queue = DOWNLOAD_QUEUE.lock()?;
-            
+
             // Lock is automatically dropped here when queue goes out of scope
             queue.add(queue_item)
         };
@@ -174,8 +227,28 @@ impl ImportSource {
         let (output_files, temp_dir) = self.process().await?;
 
         for file in output_files {
-            let dest = rom_dir.join(file.file_name().unwrap());
-            recursive_move(&file, &dest).await?;
+            // Determine if this is from a temp dir extraction
+            if let Some(temp_dir) = &temp_dir {
+                if let Ok(relative) = file.strip_prefix(temp_dir.path()) {
+                    // Preserve directory structure by using the relative path
+                    let dest = rom_dir.join(relative);
+
+                    // Ensure parent directory exists
+                    if let Some(parent) = dest.parent() {
+                        tokio::fs::create_dir_all(parent).await?;
+                    }
+
+                    recursive_move(&file, &dest).await?;
+                } else {
+                    // Fallback for files not in temp_dir
+                    let dest = rom_dir.join(file.file_name().unwrap());
+                    recursive_move(&file, &dest).await?;
+                }
+            } else {
+                // For direct files (not from extraction)
+                let dest = rom_dir.join(file.file_name().unwrap());
+                recursive_move(&file, &dest).await?;
+            }
         }
 
         if let Some(temp_dir) = temp_dir {
