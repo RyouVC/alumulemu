@@ -9,14 +9,16 @@
 //!
 
 use async_zip::tokio::read::seek::ZipFileReader;
-use downloader::{DOWNLOAD_QUEUE, DownloadQueue, DownloadQueueItem};
+use downloader::{DOWNLOAD_QUEUE, DownloadQueueItem};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::{fs::File, io::BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::{debug, info};
 pub mod downloader;
+pub mod import_utils;
 pub mod not_ultranx;
+pub mod registry;
 #[derive(Error, Debug)]
 pub enum ImportError {
     // IO errors

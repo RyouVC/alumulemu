@@ -5,6 +5,7 @@ use scraper::{Html, Selector};
 
 const WEB_URL: &str = "https://not.ultranx.ru/en";
 
+#[derive(Clone)]
 pub struct NotUltranxImporter {
     client: reqwest::Client,
 }

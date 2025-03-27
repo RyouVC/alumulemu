@@ -193,7 +193,7 @@ const handleUltraNXImport = async (gameMetadata) => {
 
         // Check if it's an error or success based on the status field
         if (result && result.status === "error") {
-            // It's an error, show error toast with message
+            // Show the actual error message from the API response
             showToastNotification(result.message || "Import failed", "alert-error");
         } else {
             // It's a success, show success toast with message
@@ -206,8 +206,29 @@ const handleUltraNXImport = async (gameMetadata) => {
         emitImport("ultranx", result);
     } catch (error) {
         console.error("Error importing from UltraNX:", error);
-        // Use alert-error class to make error toasts appear red
-        showToastNotification("Error importing from UltraNX", "alert-error");
+
+        // Extract error message from response if available
+        let errorMessage = "Error importing from UltraNX";
+
+        if (error.response && error.response.data) {
+            // Try to get the detailed error message from the response data
+            const responseData = error.response.data;
+            if (typeof responseData === 'string') {
+                // If response is a string, use it directly
+                errorMessage = responseData;
+            } else if (responseData.message) {
+                // If response has a message property
+                errorMessage = responseData.message;
+            } else if (responseData.error) {
+                // Some APIs use an error property
+                errorMessage = responseData.error;
+            }
+        } else if (error.message) {
+            // Use the error object's message if available
+            errorMessage = error.message;
+        }
+
+        showToastNotification(errorMessage, "alert-error");
     } finally {
         isImporting.value = false;
     }

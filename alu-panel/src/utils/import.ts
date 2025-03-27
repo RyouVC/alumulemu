@@ -11,10 +11,21 @@ export async function importGameUltraNX(
     method: "GET",
   });
 
+  // Always parse the response body, regardless of status code
+  const data = await response.json();
+
+  // If the request was not successful, but we received a response with a message
   if (!response.ok) {
-    throw new Error(`Error fetching game data: ${response.statusText}`);
+    // If the response contains error details, use them
+    if (data && data.message) {
+      throw new Error(data.message);
+    } else if (data && data.status === "error" && data.message) {
+      throw new Error(data.message);
+    } else {
+      // Fall back to statusText if no detailed message is available
+      throw new Error(`Error fetching game data: ${response.statusText}`);
+    }
   }
 
-  const data = await response.json();
   return data;
 }

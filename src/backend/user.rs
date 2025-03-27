@@ -109,7 +109,12 @@ pub async fn create_user(username: &str, password: &str) -> Result<(), Box<dyn s
 pub struct CreateUserRequest {
     username: String,
     password: String,
-    scopes: Option<Vec<String>>,
+
+    // todo: add scopes
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "scopes")]
+    pub _scopes: Option<Vec<String>>,
 }
 
 pub async fn create_user_handler(
@@ -246,9 +251,9 @@ fn unauthorized_response() -> Result<Response, StatusCode> {
 
 pub fn user_router() -> Router {
     Router::new()
-        .route("/users", get(list_users))
-        .route("/users", post(create_user_handler))
-        .route("/users/{username}", delete(delete_user))
+        .route("/", get(list_users))
+        .route("/", post(create_user_handler))
+        .route("/{username}", delete(delete_user))
         .fallback(|| async { Json(TinfoilResponse::Failure("Not Found".to_string())) })
     // .layer(middleware::from_fn(basic_auth))
 }

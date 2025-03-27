@@ -11,6 +11,7 @@ mod util;
 use color_eyre::Result;
 use cron::Schedule;
 use db::init_database;
+use import::registry::init_registry;
 use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
 use std::str::FromStr;
@@ -189,8 +190,7 @@ async fn main() -> color_eyre::Result<()> {
                 .add_directive("hyper=error".parse().unwrap())
                 .add_directive("reqwest=error".parse().unwrap())
                 .add_directive("tokio=error".parse().unwrap())
-                .add_directive("tower_http=debug".parse().unwrap())
-                
+                .add_directive("tower_http=debug".parse().unwrap()),
         )
         .with_file(true)
         .with_line_number(true)
@@ -205,6 +205,10 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install().unwrap();
 
     let config = config::config();
+
+    // Initialize importer registry
+    init_registry();
+    tracing::info!("Importer registry initialized");
 
     // create games directory
     if !std::path::Path::new(&games_dir()).exists() {
