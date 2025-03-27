@@ -2,21 +2,21 @@
 
 
 // Convert a date of `yyyymmdd` to a date object
-export function dateFromYYYYMMDD(yyyymmdd) {
+export function dateFromYYYYMMDD(yyyymmdd: string): Date {
     return new Date(
         yyyymmdd.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3")
     );
 }
 
 // Format file size in bytes to human-readable form (GB or MB)
-export function formatFileSize(sizeInBytes) {
+export function formatFileSize(sizeInBytes: number): string {
     return sizeInBytes > 1024 * 1024 * 1024
         ? (sizeInBytes / (1024 * 1024 * 1024)).toFixed(2) + " GB"
         : (sizeInBytes / (1024 * 1024)).toFixed(2) + " MB";
 }
 
 // Language code to language name mapping
-const languageMap = {
+const languageMap: Record<string, string> = {
     "ja": "Japanese",
     "en": "English",
     "fr": "French",
@@ -57,7 +57,7 @@ const languageMap = {
 };
 
 // Get language name from language code
-export function getLanguageName(code) {
+export function getLanguageName(code: string): string {
     return languageMap[code] || code;
 }
 
