@@ -1,4 +1,5 @@
 use crate::import::{IdImporter, ImportError, ImportSource, Importer, Result};
+use crate::import::registry::{ImporterProvider, IdImportProvider};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use url::Url;
@@ -196,6 +197,19 @@ impl UrlImporter {
     /// Convenience method to create the URL importer
     pub fn create() -> Self {
         Self::new()
+    }
+}
+
+// Implement the IdImportProvider trait for generic importing
+impl IdImportProvider for UrlImporter {
+    fn import_by_id_string<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ImportSource>> + Send + 'a>> {
+        Box::pin(async move {
+            // Use the existing import_by_id method with default options
+            self.import_by_id(id, None).await
+        })
     }
 }
 

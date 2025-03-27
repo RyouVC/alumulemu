@@ -1,4 +1,5 @@
 use super::{IdImporter, Importer, Result};
+use crate::import::registry::{ImporterProvider, IdImportProvider};
 use scraper::{Html, Selector};
 
 const WEB_URL: &str = "https://not.ultranx.ru/en";
@@ -137,5 +138,19 @@ impl IdImporter for NotUltranxImporter {
 
     async fn get_import_data(&self, id: &str) -> super::Result<Option<Self::ImportData>> {
         self.get_title(id).await
+    }
+}
+
+// Implement the IdImportProvider trait to make this work with our generic import system
+impl IdImportProvider for NotUltranxImporter {
+    fn import_by_id_string<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = super::Result<super::ImportSource>> + Send + 'a>> {
+        // Use a boxed future to implement the async trait method
+        Box::pin(async move {
+            // Default to the full package download type
+            self.import_by_id(id, Some(UltraNxImportOptions::default())).await
+        })
     }
 }

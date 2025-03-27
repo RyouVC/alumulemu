@@ -27,6 +27,119 @@ pub trait ImporterProvider: Send + Sync + 'static {
     fn clone_box(&self) -> Box<dyn ImporterProvider>;
 }
 
+/// Extension trait for ID-based importing functionality
+pub trait IdImportProvider: ImporterProvider {
+    /// Import by ID string - implemented by importers that support ID-based importing
+    fn import_by_id_string<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = crate::import::Result<crate::import::ImportSource>>
+                + Send
+                + 'a,
+        >,
+    >;
+}
+
+/// Type-erased trait object for ID importing
+#[allow(clippy::type_complexity)]
+pub struct IdImportProviderObj {
+    provider: Arc<dyn ImporterProvider>,
+    import_fn: for<'a> fn(
+        &'a dyn ImporterProvider,
+        &'a str,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = crate::import::Result<crate::import::ImportSource>>
+                + Send
+                + 'a,
+        >,
+    >,
+}
+
+impl IdImportProviderObj {
+    /// Create a new type-erased ID importer
+    pub fn new<T: IdImportProvider + 'static>(provider: Arc<T>) -> Self {
+        // Create a function pointer that captures the implementation
+        fn import_by_id_impl<'a, T: IdImportProvider + 'static>(
+            provider: &'a dyn ImporterProvider,
+            id: &'a str,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = crate::import::Result<crate::import::ImportSource>>
+                    + Send
+                    + 'a,
+            >,
+        > {
+            // Downcast to concrete type first
+            if let Some(id_provider) = provider.as_any().downcast_ref::<T>() {
+                id_provider.import_by_id_string(id)
+            } else {
+                // This should not happen if created correctly
+                Box::pin(async move {
+                    Err(crate::import::ImportError::Other(color_eyre::eyre::eyre!(
+                        "Failed to downcast provider to expected type"
+                    )))
+                })
+            }
+        }
+
+        Self {
+            provider: provider.clone() as Arc<dyn ImporterProvider>,
+            import_fn: import_by_id_impl::<T>,
+        }
+    }
+
+    /// Try to create from a provider if it supports ID importing
+    pub fn try_from_provider(provider: Arc<dyn ImporterProvider>) -> Option<Self> {
+        // Check for known ID importers
+        if provider.name().contains("NotUltranxImporter") {
+            provider
+                .as_any()
+                .downcast_ref::<crate::import::not_ultranx::NotUltranxImporter>()
+                .map(|_| {
+                    // Create a new instance with the concrete type
+                    let provider_clone = provider.clone_box();
+                    let concrete = provider_clone
+                        .as_any()
+                        .downcast_ref::<crate::import::not_ultranx::NotUltranxImporter>()
+                        .unwrap();
+                    IdImportProviderObj::new(Arc::new(concrete.clone()))
+                })
+        } else if provider.name().contains("UrlImporter") {
+            provider
+                .as_any()
+                .downcast_ref::<crate::import::url::UrlImporter>()
+                .map(|_| {
+                    // Create a new instance with the concrete type
+                    let provider_clone = provider.clone_box();
+                    let concrete = provider_clone
+                        .as_any()
+                        .downcast_ref::<crate::import::url::UrlImporter>()
+                        .unwrap();
+                    IdImportProviderObj::new(Arc::new(concrete.clone()))
+                })
+        } else {
+            // Not a known ID importer
+            None
+        }
+    }
+
+    /// Import by ID
+    pub async fn import_by_id_string(
+        &self,
+        id: &str,
+    ) -> crate::import::Result<crate::import::ImportSource> {
+        (self.import_fn)(&*self.provider, id).await
+    }
+
+    /// Get the inner provider
+    pub fn provider(&self) -> &Arc<dyn ImporterProvider> {
+        &self.provider
+    }
+}
+
 /// Trait for types that can provide custom names to override the default
 pub trait CustomImporterName {
     /// Get the custom name for this importer
@@ -244,30 +357,35 @@ impl ImporterRegistryFileExt for ImporterRegistry {
 
 impl ImporterRegistryIdExt for ImporterRegistry {
     fn get_id_importers(&self) -> Vec<Arc<dyn ImporterProvider>> {
-        // Similar approach to get_file_importers
+        // Instead of relying on type names, look for providers that implement import_by_id_string
+        // However, since we can't check traits at runtime easily, we still rely on naming conventions
+        // but with a more flexible approach
         self.get_all()
             .into_iter()
             .filter(|provider| {
                 let type_name = provider.name();
-                type_name.contains("IdImporter") || 
-                // Known implementations
-                type_name.contains("NotUltranxImporter") ||
-                type_name.contains("UrlImporter")
+                // Match known ID importer patterns
+                type_name.contains("IdImporter")
+                    || type_name.contains("Importer")
+                        && (
+                            // Any importer with "Id" in the name is likely an IdImporter
+                            type_name.contains("Id") ||
+                    // Also include our known implementations
+                    type_name.contains("NotUltranx") ||
+                    type_name.contains("Url")
+                        )
             })
             .collect()
     }
 
     fn find_id_importer_for(&self, id: &str) -> Result<Option<Arc<dyn ImporterProvider>>> {
-        // Try to determine the appropriate importer based on the ID format
-
-        // First, check if this might be a URL-encoded URL
+        // URL detection
         if id.contains("%3A%2F%2F") || (id.starts_with("http") && id.contains("%")) {
-            // Likely a URL-encoded URL
             debug!(id = id, "Detected URL-encoded input, using UrlImporter");
             return Ok(self.get_by_name("url"));
         }
 
-        // Check for title IDs in traditional format (ultranx case)
+        // Title ID format detection
         if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
             debug!(
                 id = id,
@@ -276,7 +394,9 @@ impl ImporterRegistryIdExt for ImporterRegistry {
             return Ok(self.get_by_name("ultranx"));
         }
 
-        // For other formats, try to find a suitable importer
+        // For other formats, we could implement a more sophisticated detection mechanism
+        // For example, we could try to ask each provider if they can handle this ID format
+
         debug!(id = id, "No specific importer detected for ID format");
 
         // Return the first suitable importer as a fallback

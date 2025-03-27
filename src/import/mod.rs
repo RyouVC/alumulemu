@@ -7,6 +7,201 @@
 //! - Downloading a package from a remote source
 //! - Merging to a repo with an existing repository of packages
 //!
+//! # Adding a New Importer
+//!
+//! This section provides a step-by-step guide on how to implement and register a new importer.
+//!
+//! ## 1. Choose an Importer Type
+//!
+//! Decide whether your importer will be:
+//!   - An `IdImporter` (imports resources using an identifier like a title ID or URL)
+//!   - A `FileImporter` (imports from files or directories)
+//!
+//! ## 2. Create a New Module
+//!
+//! Create a new file for your importer (e.g., `my_importer.rs`) in the `import` directory
+//! and add it to the module declarations at the top of `mod.rs`.
+//!
+//! ```rust
+//! // In mod.rs
+//! pub mod my_importer;
+//! ```
+//!
+//! ## 3. Define Your Importer Struct
+//!
+//! ```rust
+//! use crate::import::{Importer, IdImporter, Result, ImportSource, ImportError};
+//! use crate::import::registry::{ImporterProvider, IdImportProvider};
+//!
+//! #[derive(Clone, Debug)]
+//! pub struct MyImporter {
+//!     // Add any fields your importer needs
+//!     client: reqwest::Client,
+//! }
+//!
+//! // Import data type for your importer
+//! #[derive(Debug)]
+//! pub struct MyImportData {
+//!     pub id: String,
+//!     pub name: String,
+//!     // Other metadata fields
+//! }
+//!
+//! // Import options for your importer
+//! #[derive(Debug, Default)]
+//! pub struct MyImportOptions {
+//!     pub some_option: bool,
+//!     // Other options
+//! }
+//!
+//! impl MyImporter {
+//!     pub fn new() -> Self {
+//!         Self {
+//!             client: reqwest::Client::new(),
+//!         }
+//!     }
+//!     
+//!     // Add helper methods for your importer
+//! }
+//! ```
+//!
+//! ## 4. Implement Required Traits
+//!
+//! ### Basic Importer Trait
+//!
+//! ```rust
+//! impl Importer for MyImporter {
+//!     type ImportOptions = MyImportOptions;
+//! }
+//! ```
+//!
+//! ### ID Importer Trait (if applicable)
+//!
+//! ```rust
+//! impl IdImporter for MyImporter {
+//!     type ImportData = MyImportData;
+//!
+//!     async fn import_by_id(
+//!         &self,
+//!         id: &str,
+//!         options: Option<Self::ImportOptions>,
+//!     ) -> Result<ImportSource> {
+//!         // Implement your import logic here
+//!         // Example:
+//!         let url = format!("https://example.com/api/game/{}", id);
+//!         let response = self.client.get(&url).send().await?;
+//!         
+//!         if response.status() == 404 {
+//!             return Err(ImportError::GameNotFound);
+//!         }
+//!         
+//!         // Process the response and return an ImportSource
+//!         let download_url = "https://example.com/download/game.nsp";
+//!         Ok(ImportSource::RemoteHttpAuto(download_url.to_string()))
+//!     }
+//!
+//!     async fn get_import_data(&self, id: &str) -> Result<Option<Self::ImportData>> {
+//!         // Implement metadata retrieval logic
+//!         Ok(Some(MyImportData {
+//!             id: id.to_string(),
+//!             name: "Example Game".to_string(),
+//!         }))
+//!     }
+//! }
+//! ```
+//!
+//! ### IdImportProvider Trait (for generic importing)
+//!
+//! ```rust
+//! impl IdImportProvider for MyImporter {
+//!     fn import_by_id_string<'a>(
+//!         &'a self,
+//!         id: &'a str,
+//!     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ImportSource>> + Send + 'a>> {
+//!         Box::pin(async move {
+//!             // Use the existing import_by_id method with default options
+//!             self.import_by_id(id, None).await
+//!         })
+//!     }
+//! }
+//! ```
+//!
+//! ## 5. Register Your Importer
+//!
+//! Update the `init_registry` function in `registry.rs` to include your new importer:
+//!
+//! ```rust
+//! // In registry.rs
+//! pub fn init_registry() {
+//!     info!("Initializing importer registry");
+//!     
+//!     // Register existing importers
+//!     register_with_id("ultranx", NotUltranxImporter::new());
+//!     register_with_id("url", UrlImporter::new());
+//!     
+//!     // Register your new importer
+//!     register_with_id("myimporter", my_importer::MyImporter::new());
+//!     
+//!     info!("Importer registry initialized");
+//! }
+//! ```
+//!
+//! ## 6. Update IdImportProviderObj in registry.rs
+//!
+//! Add your importer to the `try_from_provider` method in the `IdImportProviderObj` struct:
+//!
+//! ```rust
+//! pub fn try_from_provider(provider: Arc<dyn ImporterProvider>) -> Option<Self> {
+//!     // Check for known ID importers
+//!     if provider.name().contains("NotUltranxImporter") {
+//!         // ... existing code
+//!     } else if provider.name().contains("UrlImporter") {
+//!         // ... existing code
+//!     } else if provider.name().contains("MyImporter") {
+//!         provider.as_any().downcast_ref::<crate::import::my_importer::MyImporter>()
+//!             .map(|_| {
+//!                 // Create a new instance
+//!                 let provider_clone = provider.clone_box();
+//!                 let concrete = provider_clone.as_any()
+//!                     .downcast_ref::<crate::import::my_importer::MyImporter>()
+//!                     .unwrap();
+//!                 IdImportProviderObj::new(Arc::new(concrete.clone()))
+//!             })
+//!     } else {
+//!         // Not a known ID importer
+//!         None
+//!     }
+//! }
+//! ```
+//!
+//! ## 7. Testing Your Importer
+//!
+//! Add tests for your importer to ensure it works correctly:
+//!
+//! ```rust
+//! #[cfg(test)]
+//! mod tests {
+//!     use super::*;
+//!     
+//!     #[tokio::test]
+//!     async fn test_my_importer() {
+//!         let importer = MyImporter::new();
+//!         
+//!         // Test ID format detection
+//!         let result = importer.import_by_id("test-id", None).await;
+//!         assert!(result.is_ok());
+//!         
+//!         // Test metadata retrieval
+//!         let data = importer.get_import_data("test-id").await.unwrap();
+//!         assert!(data.is_some());
+//!     }
+//! }
+//! ```
+//!
+//! With these steps, you can add new importers that seamlessly integrate with the existing
+//! import system. The generic approach means you only need to implement the appropriate traits
+//! and register your importer - the rest of the system will handle it automatically.
+//!
 
 use async_zip::tokio::read::seek::ZipFileReader;
 use downloader::{DOWNLOAD_QUEUE, DownloadQueueItem};

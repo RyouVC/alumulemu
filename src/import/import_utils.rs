@@ -9,7 +9,10 @@ use tracing::{error, info};
 
 use crate::backend::admin::trigger_rescan;
 use crate::import::IdImporter;
-use crate::import::registry::{ImporterProvider, find_id_importer_for, get_importer_by_name};
+use crate::import::registry::{
+    IdImportProvider, IdImportProviderObj, ImporterProvider, find_id_importer_for,
+    get_importer_by_name,
+};
 
 /// Errors that can occur during the import process
 #[derive(Debug, thiserror::Error)]
@@ -213,67 +216,40 @@ fn get_importer_id_from_provider(provider: &Arc<dyn ImporterProvider>) -> Option
 
 /// Process an import using dynamic dispatch to the appropriate IdImporter implementation
 async fn process_id_import(provider: Arc<dyn ImporterProvider>, id: String) -> ImportResult {
-    use crate::import::IdImporter;
+    // Use our new IdImportProviderObj wrapper to handle the dynamic dispatch
+    if let Some(id_provider_obj) = IdImportProviderObj::try_from_provider(provider.clone()) {
+        // Use the type-erased import method
+        match id_provider_obj.import_by_id_string(&id).await {
+            Ok(import_source) => {
+                // Spawn a background task to handle the import
+                let id_clone = id.clone();
+                tokio::spawn(async move {
+                    info!("Starting import for ID: {}", id_clone);
+                    if let Err(e) = import_source.import().await {
+                        error!("Failed to import game: {}", e);
+                    } else {
+                        info!("Import completed successfully for ID: {}", id_clone);
+                    }
+                    // Trigger a rescan after import
+                    info!("Triggering rescan after import");
+                    let _ = trigger_rescan(Default::default()).await;
+                });
 
-    // Handle known importer types - could be extended with a macro or other approaches
-    // to make this more maintainable as more importers are added
-    let type_name = provider.name();
-
-    // Match on the importer type name to dispatch to the correct implementation
-    let import_result = if type_name.contains("NotUltranxImporter") {
-        let importer_ref = provider
-            .as_any()
-            .downcast_ref::<crate::import::not_ultranx::NotUltranxImporter>()
-            .ok_or_else(|| {
-                ImportError::ImporterNotFound("Failed to downcast to NotUltranxImporter".into())
-            })?;
-
-        // Clone to get ownership for the async call
-        let importer = importer_ref.clone();
-        importer.import_by_id(&id, None).await
-    } else if type_name.contains("UrlImporter") {
-        let importer_ref = provider
-            .as_any()
-            .downcast_ref::<crate::import::url::UrlImporter>()
-            .ok_or_else(|| {
-                ImportError::ImporterNotFound("Failed to downcast to UrlImporter".into())
-            })?;
-
-        // Clone to get ownership for the async call
-        let importer = importer_ref.clone();
-        importer.import_by_id(&id, None).await
-    } else {
-        return Err(ImportError::ImporterNotFound(format!(
-            "Unsupported importer type for dynamic dispatch: {}",
-            type_name
-        )));
-    };
-
-    // Process the result of the import
-    match import_result {
-        Ok(import_source) => {
-            // Spawn a background task to handle the import
-            let id_clone = id.clone();
-            tokio::spawn(async move {
-                info!("Starting import for ID: {}", id_clone);
-                if let Err(e) = import_source.import().await {
-                    error!("Failed to import game: {}", e);
-                } else {
-                    info!("Import completed successfully for ID: {}", id_clone);
-                }
-                // Trigger a rescan after import
-                info!("Triggering rescan after import");
-                let _ = trigger_rescan(Default::default()).await;
-            });
-
-            Ok(Json(serde_json::json!({
-                "status": "success",
-                "message": "Import started",
-                "id": id
-            }))
-            .into_response())
+                Ok(Json(serde_json::json!({
+                    "status": "success",
+                    "message": "Import started",
+                    "id": id
+                }))
+                .into_response())
+            }
+            Err(e) => Err(ImportError::from(e)),
         }
-        Err(e) => Err(ImportError::from(e)),
+    } else {
+        // Provider doesn't support ID-based importing
+        Err(ImportError::InvalidSource(format!(
+            "Importer {} does not support ID-based importing",
+            provider.name()
+        )))
     }
 }
 
