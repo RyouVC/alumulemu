@@ -67,6 +67,7 @@
 import { ref, onMounted, watch } from "vue";
 import GameTitleButton from './GameTitleButton.vue';
 import AluButton from './AluButton.vue';
+import { SearchQuery, TitleMetadata } from '../title.ts';
 
 const isScanning = ref(false);
 const isLoading = ref(true);
@@ -82,33 +83,17 @@ const loadGames = async () => {
         isLoading.value = true;
         loadingError.value = null;
 
-        let url = "/api/base_games";
-
+        let result;
         if (searchQuery.value.trim()) {
-            url = `/api/base_games/search?q=${encodeURIComponent(searchQuery.value.trim())}`;
-        }
-
-        console.log("Fetching from:", url);
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            throw new Error(
-                `Failed to fetch games: ${response.status} ${response.statusText}`,
-            );
-        }
-
-        const data = await response.json();
-        console.log("Response data:", data);
-
-        if (Array.isArray(data)) {
-            games.value = data;
-        } else if (data && Array.isArray(data.results)) {
-            games.value = data.results;
+            // Use our renamed searchAvailableGames method
+            const query = new SearchQuery(searchQuery.value);
+            result = await TitleMetadata.searchAvailableGames(query);
         } else {
-            games.value = [];
-            console.warn("API didn't return an array:", data);
+            // Use the fetchBaseGames method for the main list
+            result = await TitleMetadata.fetchBaseGames();
         }
+
+        games.value = result;
     } catch (error) {
         console.error("Error loading games:", error);
         loadingError.value = error.message;
@@ -131,17 +116,8 @@ watch(searchQuery, () => {
 const rescanGames = async () => {
     isScanning.value = true;
     try {
-        const response = await fetch("/admin/rescan", {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error("Rescan failed");
-        }
+        // Use our new rescanGames method
+        await TitleMetadata.rescanGames(false);
         await loadGames();
     } catch (error) {
         console.log(
@@ -172,17 +148,8 @@ const forceRescanGames = async () => {
     isScanning.value = true;
     console.log("Force rescan games");
     try {
-        const response = await fetch("/admin/rescan?rescan=true", {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error("Rescan failed");
-        }
+        // Use our new rescanGames method with the force parameter
+        await TitleMetadata.rescanGames(true);
         await loadGames();
     } catch (error) {
         console.log(
