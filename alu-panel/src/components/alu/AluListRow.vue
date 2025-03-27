@@ -91,6 +91,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { formatFileSize } from '../../util.js';
 import AgeRating from './AgeRating.vue';
 import AluButton from '../AluButton.vue';
 
@@ -115,9 +116,7 @@ const downloadUrl = ref('');
 const dropdownMenu = ref(null);
 
 const formattedSize = computed(() => {
-    return props.game.size > 1024 * 1024 * 1024
-        ? (props.game.size / (1024 * 1024 * 1024)).toFixed(2) + " GB"
-        : (props.game.size / (1024 * 1024)).toFixed(2) + " MB";
+    return formatFileSize(props.game.size);
 });
 
 const isValidUrl = computed(() => {

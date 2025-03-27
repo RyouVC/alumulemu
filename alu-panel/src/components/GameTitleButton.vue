@@ -4,7 +4,6 @@
         <!-- Game Image -->
         <img :src="game.iconUrl" :alt="game.name"
             class="object-cover w-full h-full transition-all duration-300 group-hover:blur-sm group-hover:scale-105" />
-
         <!-- Hover Overlay -->
         <div
             class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center transition-opacity duration-300 opacity-0 bg-gray-900/80 group-hover:opacity-100 backdrop-blur-sm">
@@ -21,7 +20,7 @@
 
 <script setup>
 import { computed } from 'vue';
-
+import { formatFileSize } from '../util.js';
 
 const props = defineProps({
     game: {
@@ -33,12 +32,10 @@ const props = defineProps({
 const emit = defineEmits(['get-metadata']);
 
 const formattedSize = computed(() => {
-    return props.game.size > 1024 * 1024 * 1024
-        ? (props.game.size / (1024 * 1024 * 1024)).toFixed(2) + " GB"
-        : (props.game.size / (1024 * 1024)).toFixed(2) + " MB";
+    return formatFileSize(props.game.size);
 });
 
-const emitGetMetadata = () => {
+function emitGetMetadata() {
     emit('get-metadata', props.game.titleId);
-};
+}
 </script>

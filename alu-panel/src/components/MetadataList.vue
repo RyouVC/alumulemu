@@ -20,11 +20,7 @@
                         <span>{{ metadata.publisher }}</span>
                         <span class="opacity-50">{{ metadata.releaseDate.slice(0, 4) }}</span>
                         <span class="opacity-50">|</span>
-                        <span>{{
-                            metadata.size > 1024 * 1024 * 1024
-                                ? (metadata.size / (1024 * 1024 * 1024)).toFixed(2) + " GB"
-                                : (metadata.size / (1024 * 1024)).toFixed(2) + " MB"
-                        }}</span>
+                        <span>{{ formatFileSize(metadata.size) }}</span>
                     </div>
                 </div>
 
@@ -129,7 +125,8 @@
                         </div>
 
                         <div id="intro" class="my-4" v-if="metadata.intro && metadata.intro.trim()">
-                            <blockquote class="px-4 py-3 text-lg italic border-l-4 rounded-r-lg border-primary bg-base-200/50">
+                            <blockquote
+                                class="px-4 py-3 text-lg italic border-l-4 rounded-r-lg border-primary bg-base-200/50">
                                 {{ metadata.intro }}
                             </blockquote>
                         </div>
@@ -210,7 +207,7 @@
 </template>
 
 <script>
-import { dateFromYYYYMMDD } from '../util.js';
+import { dateFromYYYYMMDD, formatFileSize, getLanguageName } from '../util.js';
 import AluList from './alu/AluList.vue';
 import AluListRow from './alu/AluListRow.vue';
 import AluButton from './AluButton.vue';
@@ -232,45 +229,7 @@ export default {
             currentSetIndex: 0,
             imagesPerSet: 3,
             fullScreenImage: null,
-            languageMap: {
-                "ja": "Japanese",
-                "en": "English",
-                "fr": "French",
-                "de": "German",
-                "it": "Italian",
-                "es": "Spanish",
-                "zh": "Chinese",
-                "ko": "Korean",
-                "nl": "Dutch",
-                "pt": "Portuguese",
-                "ru": "Russian",
-                "zh-CN": "Chinese (Simplified)",
-                "zh-TW": "Chinese (Traditional)",
-                "en-GB": "English (UK)",
-                "en-US": "English (US)",
-                "es-419": "Spanish (Latin America)",
-                "es-ES": "Spanish (Spain)",
-                "pt-BR": "Portuguese (Brazil)",
-                "pt-PT": "Portuguese (Portugal)",
-                "fr-CA": "French (Canada)",
-                "fr-FR": "French (France)",
-                "da": "Danish",
-                "fi": "Finnish",
-                "nb": "Norwegian",
-                "sv": "Swedish",
-                "cs": "Czech",
-                "hu": "Hungarian",
-                "pl": "Polish",
-                "ro": "Romanian",
-                "tr": "Turkish",
-                "ar": "Arabic",
-                "he": "Hebrew",
-                "th": "Thai",
-                "id": "Indonesian",
-                "vi": "Vietnamese",
-                "el": "Greek",
-                "uk": "Ukrainian",
-            },
+            // Language map removed as it's now in util.js
         };
     },
     computed: {
@@ -286,9 +245,8 @@ export default {
     },
     methods: {
         dateFromYYYYMMDD,
-        getLanguageName(code) {
-            return this.languageMap[code] || code;
-        },
+        formatFileSize,
+        getLanguageName,
         async downloadGame(downloadId) {
             try {
                 window.location.href = `/api/get_game/${downloadId}`;
