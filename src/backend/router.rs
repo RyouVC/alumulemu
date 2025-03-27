@@ -1,7 +1,7 @@
 use axum::{
     Router,
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
 };
 use tower_http::services::ServeDir;
 
@@ -20,11 +20,22 @@ pub fn create_router() -> Router {
             "/favicon.ico",
             axum::routing::get(|| async {
                 match std::fs::read("alu-panel/dist/favicon.ico") {
-                    Ok(content) => axum::response::Response::builder()
-                        .header("Content-Type", "image/x-icon")
-                        .body(axum::body::Body::from(content))
-                        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
-                    Err(_) => StatusCode::NOT_FOUND.into_response(),
+                    Ok(content) => {
+                        match axum::response::Response::builder()
+                            .header("Content-Type", "image/x-icon")
+                            .body(axum::body::Body::from(content))
+                        {
+                            Ok(response) => response,
+                            Err(e) => {
+                                tracing::error!("Failed to build favicon response: {}", e);
+                                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to read favicon.ico: {}", e);
+                        StatusCode::NOT_FOUND.into_response()
+                    }
                 }
             }),
         )
@@ -35,7 +46,10 @@ pub fn create_router() -> Router {
         .fallback(|| async {
             match std::fs::read_to_string("alu-panel/dist/index.html") {
                 Ok(contents) => Html(contents).into_response(),
-                Err(_) => StatusCode::NOT_FOUND.into_response(),
+                Err(e) => {
+                    tracing::error!("Failed to read index.html: {}", e);
+                    StatusCode::NOT_FOUND.into_response()
+                }
             }
         })
         .layer(axum::middleware::from_fn(basic_auth_if_public))
@@ -49,21 +63,30 @@ pub fn static_router() -> Router {
         .fallback(|| async {
             match std::fs::read_to_string("alu-panel/dist/index.html") {
                 Ok(contents) => Html(contents).into_response(),
-                Err(_) => StatusCode::NOT_FOUND.into_response(),
+                Err(e) => {
+                    tracing::error!("Failed to read index.html: {}", e);
+                    StatusCode::NOT_FOUND.into_response()
+                }
             }
         })
+}
+
+/// Utility function to safely read the HTML file with error handling
+async fn read_html_fallback() -> Response {
+    match std::fs::read_to_string("alu-panel/dist/index.html") {
+        Ok(contents) => Html(contents).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to read index.html: {}", e);
+            StatusCode::NOT_FOUND.into_response()
+        }
+    }
 }
 
 /// Create the admin router with authentication
 pub fn admin_router() -> Router {
     Router::new()
         .route("/rescan", axum::routing::post(super::admin::rescan_games))
-        .fallback(|| async {
-            match std::fs::read_to_string("alu-panel/dist/index.html") {
-                Ok(contents) => Html(contents).into_response(),
-                Err(_) => StatusCode::NOT_FOUND.into_response(),
-            }
-        })
+        .fallback(read_html_fallback)
         // Generic importer endpoints
         .route(
             "/import/{importer}/{id}",

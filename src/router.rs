@@ -179,18 +179,20 @@ pub async fn update_metadata_from_filesystem(
 
 pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()> {
     tracing::info!("Scanning file: {}", path.display());
-
-    // Get all existing metadata
-    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+    // Get all existing metadata with proper error handling
+    let all_metadata = match NspMetadata::get_all().await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            tracing::warn!("Failed to get existing metadata: {}", e);
+            Vec::new() // Continue with empty metadata instead of crashing
+        }
+    };
 
     let file_path_str = path.to_string_lossy().to_string();
-
-    // Log that we're updating this path
     tracing::info!("Updating metadata for file: {}", file_path_str);
 
     const MAX_RETRIES: usize = 3;
     const RETRY_DELAY_MS: u64 = 500;
-
     tracing::debug!("Processing file: {}", file_path_str);
 
     let mut attempt = 0;
@@ -203,6 +205,7 @@ pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()
                 GameFileDataNaive::get_cached(path, &all_metadata).await
             }
         };
+
         match naive {
             Ok(game_data) => {
                 let title_id = game_data
@@ -214,11 +217,15 @@ pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()
                     .iter()
                     .find(|m| m.path == file_path_str)
                     .and_then(|m| m.title_name.clone())
-                    .unwrap_or_else(|| game_data.name.trim().trim_end_matches(".nsp").to_string());
+                    .unwrap_or_else(|| {
+                        let name = game_data.name.trim();
+                        name.trim_end_matches(".nsp").to_string()
+                    });
 
                 let version = game_data.version.unwrap_or_else(|| "v0".to_string());
                 let extension = game_data.extension.unwrap_or_default();
                 let download_id = format_download_id(&title_id, &version, &extension);
+
                 break Some(NspMetadata {
                     path: file_path_str.clone(),
                     title_id,
@@ -258,6 +265,7 @@ pub async fn scan_file(path: &Path, rescan_files: bool) -> color_eyre::Result<()
             tracing::warn!("Failed to save metadata: {}", e);
         }
     }
+
     Ok(())
 }
 
@@ -326,10 +334,14 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
             EventKind::Create(_) | EventKind::Modify(_) => {
                 tracing::info!("File created/modified: {}", path_str);
 
-                // Get all existing metadata
-                let all_metadata = std::sync::Arc::new(
-                    NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new()),
-                );
+                // Get all existing metadata with better error handling
+                let all_metadata = match NspMetadata::get_all().await {
+                    Ok(metadata) => std::sync::Arc::new(metadata),
+                    Err(e) => {
+                        tracing::error!("Failed to get metadata: {}", e);
+                        std::sync::Arc::new(Vec::new()) // Continue with empty metadata
+                    }
+                };
 
                 // Process the new/modified file
                 match GameFileDataNaive::get_cached(event_path, &all_metadata).await {
@@ -372,12 +384,25 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
             EventKind::Remove(_) => {
                 tracing::info!("File removed: {}", path_str);
 
-                // Find and delete the metadata for this file
-                let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
-
-                if let Some(metadata) = all_metadata.iter().find(|m| m.path == path_str) {
-                    if let Err(e) = metadata.delete().await {
-                        tracing::error!("Failed to delete metadata for {}: {}", path_str, e);
+                // Find and delete the metadata for this file, with proper error handling
+                match NspMetadata::get_all().await {
+                    Ok(all_metadata) => {
+                        if let Some(metadata) = all_metadata.iter().find(|m| m.path == path_str) {
+                            if let Err(e) = metadata.delete().await {
+                                tracing::error!(
+                                    "Failed to delete metadata for {}: {}",
+                                    path_str,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to get metadata when removing file {}: {}",
+                            path_str,
+                            e
+                        );
                     }
                 }
             }
@@ -389,15 +414,32 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
 #[tracing::instrument]
 pub async fn generate_index_from_metadata() -> color_eyre::eyre::Result<Index> {
     let mut idx = Index::default();
-    let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
+
+    // Get all metadata with proper error handling
+    let all_metadata = match NspMetadata::get_all().await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            tracing::error!("Failed to get metadata for index generation: {}", e);
+            return Err(color_eyre::eyre::eyre!("Failed to generate index: {}", e));
+        }
+    };
 
     for metadata in all_metadata {
         let path = std::path::Path::new(&metadata.path);
-        let filename = path.file_name().unwrap().to_string_lossy().into_owned();
+
+        // Handle potential missing filename more gracefully
+        let filename = match path.file_name() {
+            Some(name) => name.to_string_lossy().into_owned(),
+            None => {
+                tracing::warn!("Skipping entry with invalid path: {}", metadata.path);
+                continue;
+            }
+        };
+
+        // Handle potential missing extension more gracefully
         let extension = path
             .extension()
-            .unwrap_or_default()
-            .to_str()
+            .and_then(|ext| ext.to_str())
             .unwrap_or("nsp");
 
         // Use the refactored function to format the name
@@ -447,28 +489,29 @@ async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse
     next.run(req).await
 }
 
-// Middleware function to log requests
+// Middleware function to log requests with better error handling
 async fn log_request(req: Request, next: Next) -> impl IntoResponse {
     let path = req.uri().path().to_owned();
     let method = req.method().clone();
 
-    // Extract and format request headers
+    // Extract and format request headers with safer handling of binary values
     let headers = req
         .headers()
         .iter()
-        .map(|(name, value)| format!("{}: {}", name, value.to_str().unwrap_or("[binary]")))
+        .map(|(name, value)| {
+            let value_str = value.to_str().unwrap_or("[binary]");
+            format!("{}: {}", name, value_str)
+        })
         .collect::<Vec<String>>()
         .join(", ");
 
     let start = Instant::now();
-
     tracing::trace!("Request started: {} {}\nHeaders: {}", method, path, headers);
 
     let response = next.run(req).await;
-
     let duration = start.elapsed();
-    tracing::trace!("Request completed: {} {} in {:?}", method, path, duration);
 
+    tracing::trace!("Request completed: {} {} in {:?}", method, path, duration);
     response
 }
 

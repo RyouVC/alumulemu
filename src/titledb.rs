@@ -29,8 +29,13 @@ pub struct GameFileDataNaive {
 
 impl GameFileDataNaive {
     pub fn parse_from_filename(filename: &str) -> Self {
-        // the name is regex stripped by the tags and extension
-        let regex = Regex::new(r"\[(.*?)\]").unwrap();
+        // Safely create regex, falling back to simple parsing if regex fails
+        let regex = Regex::new(r"\[(.*?)\]").unwrap_or_else(|e| {
+            tracing::error!("Failed to compile regex: {}", e);
+            // Return a dummy regex that won't match anything
+            Regex::new(r"a^").unwrap()
+        });
+
         // First, extract the extension
         let extension = filename.split('.').last().map(|s| s.to_string());
 
@@ -81,16 +86,25 @@ impl GameFileDataNaive {
     const VALID_EXTENSIONS: [&str; 4] = ["nsp", "nsz", "xci", "xcz"];
     /// Try to get the cached naive metadata for a file
     pub async fn get_cached(path: &Path, all_metadata: &[NspMetadata]) -> Result<Self> {
-        let filename = path.file_name().unwrap().to_str().unwrap();
-        let extension = path.extension().unwrap_or_default().to_str().unwrap();
+        let filename = path
+            .file_name()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: no filename"))?
+            .to_str()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: filename is not valid UTF-8"))?;
+
+        let extension = path
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: extension is not valid UTF-8"))?;
 
         if Self::VALID_EXTENSIONS.contains(&extension) {
-            //let nsp_data = NspData::read_file(path).unwrap();
-            //let all_metadata = NspMetadata::get_all().await.unwrap_or_else(|_| Vec::new());
-            if let Some(existing_metadata) = all_metadata
-                .iter()
-                .find(|m| m.path == path.to_str().unwrap())
-            {
+            // Check if we already have metadata for this file
+            let path_str = path
+                .to_str()
+                .ok_or_else(|| color_eyre::eyre::eyre!("Path is not valid UTF-8"))?;
+
+            if let Some(existing_metadata) = all_metadata.iter().find(|m| m.path == path_str) {
                 tracing::debug!("Found cached metadata for {}", path.display());
                 let mut naive = Self::parse_from_filename(filename);
                 naive.title_id = Some(existing_metadata.title_id.clone());
@@ -98,23 +112,34 @@ impl GameFileDataNaive {
                 return Ok(naive);
             } else {
                 tracing::debug!("Reading NSP/NSZ/XCI file: {:?}", filename);
-                let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
-                let extension = path.extension().unwrap().to_str().unwrap();
+                let cnmt = match crate::nsp::read_cnmt_merged(path_str) {
+                    Ok(cnmt) => cnmt,
+                    Err(e) => {
+                        tracing::warn!("Failed to read CNMT for {}: {}", path.display(), e);
+                        return Ok(Self::parse_from_filename(filename));
+                    }
+                };
+
+                let extension = path
+                    .extension()
+                    .ok_or_else(|| color_eyre::eyre::eyre!("Path has no extension"))?
+                    .to_str()
+                    .ok_or_else(|| color_eyre::eyre::eyre!("Extension is not valid UTF-8"))?;
+
                 let title_id = cnmt.get_title_id_string();
                 let version = cnmt.header.title_version.to_string();
-                // let cnmt_output = run_nstool(path.to_str().unwrap());
-                // let cnmt = parse_cnmt_output(&cnmt_output);
-                // let (title_id, version) = get_title_id_and_version(cnmt);
+
                 tracing::debug!("Title ID: {:?}", title_id);
                 tracing::debug!("Version: {:?}", version);
 
                 let metadata = NspMetadata {
-                    path: path.to_str().unwrap().to_string(),
+                    path: path_str.to_string(),
                     title_id: title_id.clone(),
                     version: version.clone(),
                     title_name: None,
                     download_id: format_download_id(&title_id, &version, extension),
                 };
+
                 if let Err(e) = metadata.save().await {
                     tracing::warn!("Failed to save metadata: {}", e);
                 }
@@ -123,22 +148,31 @@ impl GameFileDataNaive {
                 let title_query_start = std::time::Instant::now();
                 let config = crate::config::config();
                 let locale = config.backend_config.get_locale_string();
-                let title = Title::get_from_title_id(&locale, &title_id).await?;
+                let title = match Title::get_from_title_id(&locale, &title_id).await {
+                    Ok(title) => title,
+                    Err(e) => {
+                        tracing::warn!("Failed to get title info: {}", e);
+                        None
+                    }
+                };
+
                 tracing::debug!("Title query took {:?}", title_query_start.elapsed());
 
                 // If we got a title, return it
                 if let Some(title) = title {
                     let title_name = title.name.clone();
                     let metadata = NspMetadata {
-                        path: path.to_str().unwrap().to_string(),
+                        path: path_str.to_string(),
                         title_id: title_id.clone(),
                         version: version.clone(),
                         title_name: title_name.clone(),
                         download_id: format_download_id(&title_id, &version, extension),
                     };
+
                     if let Err(e) = metadata.save().await {
                         tracing::warn!("Failed to save metadata with title name: {}", e);
                     }
+
                     return Ok(Self {
                         name: title_name.unwrap_or_default(),
                         title_id: Some(title_id.to_string()),
@@ -161,15 +195,41 @@ impl GameFileDataNaive {
 
     /// Try to get the naive metadata for a file without using the cache
     pub async fn get(path: &Path) -> Result<Self> {
-        let filename = path.file_name().unwrap().to_str().unwrap();
-        let extension = path.extension().unwrap_or_default().to_str().unwrap();
+        let filename = path
+            .file_name()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: no filename"))?
+            .to_str()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: filename is not valid UTF-8"))?;
+
+        let extension = path
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .ok_or_else(|| color_eyre::eyre::eyre!("Invalid path: extension is not valid UTF-8"))?;
 
         if Self::VALID_EXTENSIONS.contains(&extension) {
             tracing::debug!("Reading NSP/NSZ/XCI file: {:?}", filename);
-            let cnmt = crate::nsp::read_cnmt_merged(path.to_str().unwrap())?;
-            let extension = path.extension().unwrap().to_str().unwrap();
+            let path_str = path
+                .to_str()
+                .ok_or_else(|| color_eyre::eyre::eyre!("Path is not valid UTF-8"))?;
+
+            let cnmt = match crate::nsp::read_cnmt_merged(path_str) {
+                Ok(cnmt) => cnmt,
+                Err(e) => {
+                    tracing::warn!("Failed to read CNMT for {}: {}", path.display(), e);
+                    return Ok(Self::parse_from_filename(filename));
+                }
+            };
+
+            let extension = path
+                .extension()
+                .ok_or_else(|| color_eyre::eyre::eyre!("Path has no extension"))?
+                .to_str()
+                .ok_or_else(|| color_eyre::eyre::eyre!("Extension is not valid UTF-8"))?;
+
             let title_id = cnmt.get_title_id_string();
             let version = cnmt.header.title_version.to_string();
+
             tracing::debug!("Title ID: {:?}", title_id);
             tracing::debug!("Version: {:?}", version);
 
@@ -177,7 +237,14 @@ impl GameFileDataNaive {
             let title_query_start = std::time::Instant::now();
             let config = crate::config::config();
             let locale = config.backend_config.get_locale_string();
-            let title = Title::get_from_title_id(&locale, &title_id).await?;
+            let title = match Title::get_from_title_id(&locale, &title_id).await {
+                Ok(title) => title,
+                Err(e) => {
+                    tracing::warn!("Failed to get title info: {}", e);
+                    None
+                }
+            };
+
             tracing::debug!("Title query took {:?}", title_query_start.elapsed());
 
             // If we got a title, return it

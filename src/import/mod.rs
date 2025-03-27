@@ -503,7 +503,7 @@ impl ImportSource {
         info!(archive_path = ?path, "Extracting archive to temporary directory");
 
         // Create temporary directory
-        let temp_dir = crate::util::tempdir();
+        let temp_dir = crate::util::tempdir()?;
         let temp_path = temp_dir.path();
 
         // Extract the archive to the temporary directory

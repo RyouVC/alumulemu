@@ -51,41 +51,62 @@ pub async fn download_file(
     let file_path = &metadata_entry.path;
     tracing::debug!("Found file path: {}", file_path);
 
+    // Open the file with better error handling
     let file = match tokio::fs::File::open(file_path).await {
         Ok(file) => file,
-        Err(_) => return Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!("Failed to open file at {}: {}", file_path, e);
+            return Err(StatusCode::NOT_FOUND);
+        }
     };
 
-    // Get the raw filename and extension for formatting
+    // Get the raw filename and extension for formatting with better error handling
     let path = std::path::Path::new(file_path);
-    let raw_filename = path.file_name().unwrap().to_string_lossy().into_owned();
+    
+    let raw_filename = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| {
+            tracing::warn!("Could not extract filename from path: {}", file_path);
+            "unknown".to_string()
+        });
+    
     let extension = path
         .extension()
-        .unwrap_or_default()
-        .to_str()
-        .unwrap_or("nsp");
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_else(|| {
+            tracing::warn!("Could not extract extension from path: {}", file_path);
+            "nsp"
+        });
 
     // Create a nicely formatted filename for the download
     let formatted_filename = format_game_name(&metadata_entry, &raw_filename, extension);
 
     // Sanitize the filename to ensure it's safe for Content-Disposition
     // Replace any characters that might cause issues in headers
-    let safe_filename = formatted_filename.replace(['"', '\\'], "_");
+    let safe_filename = formatted_filename.replace(['"', '\\', '\n', '\r', '\t'], "_");
 
     tracing::info!("Serving download with filename: {}", safe_filename);
 
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);
 
-    let response = Response::builder()
+    // Build the response with proper error handling
+    match Response::builder()
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{safe_filename}\""),
         )
         .body(body)
-        .unwrap();
-
-    tracing::debug!("Response headers: {:?}", response.headers());
-    Ok(response)
+    {
+        Ok(response) => {
+            tracing::debug!("Response headers: {:?}", response.headers());
+            Ok(response)
+        },
+        Err(e) => {
+            tracing::error!("Failed to build response: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }

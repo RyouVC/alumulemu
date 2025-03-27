@@ -1,28 +1,61 @@
-use std::{fs::File, path::PathBuf};
-
 use crate::db::NspMetadata;
 use color_eyre::Result;
 use reqwest::Client;
+use std::{fs::File, io, path::PathBuf};
 use tempfile::TempDir;
+
 const TITLEDB_BASEURL: &str = "https://github.com/blawar/titledb/raw/refs/heads/master";
 
-pub fn tempdir() -> TempDir {
-    tempfile::tempdir_in(cache_dir()).unwrap()
+/// Create a temporary directory in the cache directory
+/// Returns None if the directory couldn't be created
+pub fn tempdir() -> Result<TempDir> {
+    tempfile::tempdir_in(cache_dir().map_err(|e| {
+        tracing::error!("Failed to get cache directory: {}", e);
+        e
+    })?)
+    .map_err(|e| {
+        tracing::error!("Failed to create temporary directory: {}", e);
+        e.into()
+    })
 }
 
-pub fn tempfile() -> File {
-    tempfile::tempfile_in(cache_dir()).unwrap()
+/// Create a temporary file in the cache directory
+/// Returns None if the file couldn't be created
+pub fn tempfile() -> Result<File> {
+    tempfile::tempfile_in(cache_dir().map_err(|e| {
+        tracing::error!("Failed to get cache directory: {}", e);
+        e
+    })?)
+    .map_err(|e| {
+        tracing::error!("Failed to create temporary file: {}", e);
+        e.into()
+    })
 }
 
-pub fn cache_dir() -> PathBuf {
+/// Get the path to the cache directory, creating it if it doesn't exist
+pub fn cache_dir() -> Result<PathBuf> {
     let cache_dir = crate::config::config().backend_config.cache_dir;
     // create if not exists
-    std::fs::create_dir_all(&cache_dir).unwrap();
-    cache_dir.into()
+    std::fs::create_dir_all(&cache_dir).map_err(|e| {
+        tracing::error!("Failed to create cache directory {}: {}", cache_dir, e);
+        color_eyre::eyre::eyre!("IO error: {}", e)
+    })?;
+    Ok(cache_dir.into())
 }
 
+/// Get the path to the titledb cache directory
 pub fn titledb_cache_dir() -> PathBuf {
-    let cache_dir = cache_dir().join("titledb");
+    let cache_path = cache_dir().unwrap_or_else(|_| {
+        let fallback = PathBuf::from("/tmp/alumulemu/titledb");
+        tracing::warn!(
+            "Failed to get cache directory, using fallback: {}",
+            fallback.display()
+        );
+        fallback
+    });
+
+    let cache_dir = cache_path.join("titledb");
+
     // Ensure the directory exists
     if !std::path::Path::new(&cache_dir).exists() {
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
@@ -31,19 +64,27 @@ pub fn titledb_cache_dir() -> PathBuf {
             tracing::debug!("Created titledb cache directory: {}", cache_dir.display());
         }
     }
-
     cache_dir
 }
 
 /// Downloads a TitleDB file from the internet
 pub async fn download_titledb(client: &Client, region: &str, lang: &str) -> Result<String> {
     let url = format!("{TITLEDB_BASEURL}/{}.{}.json", region, lang);
-
     let cache_dir = titledb_cache_dir();
     let file_path = cache_dir
         .join(format!("{}.{}.json", region, lang))
         .to_str()
-        .unwrap()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Invalid path for TitleDB file: {}/{}.{}.json",
+                    cache_dir.display(),
+                    region,
+                    lang
+                ),
+            )
+        })?
         .to_string();
 
     tracing::info!(
@@ -54,7 +95,6 @@ pub async fn download_titledb(client: &Client, region: &str, lang: &str) -> Resu
     );
 
     let resp = client.get(&url).send().await?;
-
     if !resp.status().is_success() {
         return Err(color_eyre::eyre::eyre!(
             "Failed to download TitleDB: {}",
@@ -64,7 +104,6 @@ pub async fn download_titledb(client: &Client, region: &str, lang: &str) -> Resu
 
     let bytes = resp.bytes().await?;
     std::fs::write(&file_path, bytes)?;
-
     Ok(file_path)
 }
 
@@ -75,10 +114,11 @@ pub fn format_game_name(metadata: &NspMetadata, filename: &str, extension: &str)
         None => filename.trim().trim_end_matches(extension).to_string(),
     };
 
-    let version = &metadata
+    let version = metadata
         .version
         .strip_prefix('v')
         .unwrap_or(&metadata.version);
+
     format!(
         "{} [{}][v{}].{}",
         name, metadata.title_id, version, extension

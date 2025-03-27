@@ -57,10 +57,10 @@ pub struct BackendConfig {
     )]
     pub secondary_locales: Vec<String>,
 
-    #[clap(long, env = "ALU_PROD_KEYS", default_value_t = String::from(dirs::home_dir().unwrap_or_default().join(".switch/prod.keys").to_str().unwrap_or("~/.switch/prod.keys")))]
+    #[clap(long, env = "ALU_PROD_KEYS", default_value_t = get_default_prod_keys_path())]
     pub prod_keys: String,
 
-    #[clap(long, env = "ALU_TITLE_KEYS", default_value_t = String::from(dirs::home_dir().unwrap_or_default().join(".switch/title.keys").to_str().unwrap_or("~/.switch/title.keys")))]
+    #[clap(long, env = "ALU_TITLE_KEYS", default_value_t = get_default_title_keys_path())]
     pub title_keys: String,
 
     #[clap(long, env = "ALU_PUBLIC", default_value = "false")]
@@ -69,6 +69,22 @@ pub struct BackendConfig {
     /// Cache directory for importers and other temporary files, they should be cleaned up after use
     #[clap(long, env = "ALU_CACHE_DIR", default_value = "/tmp/alumulemu")]
     pub cache_dir: String,
+}
+
+/// Safely determine the default path for prod.keys
+fn get_default_prod_keys_path() -> String {
+    dirs::home_dir()
+        .map(|home| home.join(".switch/prod.keys"))
+        .and_then(|path| path.to_str().map(String::from))
+        .unwrap_or_else(|| "~/.switch/prod.keys".to_string())
+}
+
+/// Safely determine the default path for title.keys
+fn get_default_title_keys_path() -> String {
+    dirs::home_dir()
+        .map(|home| home.join(".switch/title.keys"))
+        .and_then(|path| path.to_str().map(String::from))
+        .unwrap_or_else(|| "~/.switch/title.keys".to_string())
 }
 
 impl BackendConfig {
