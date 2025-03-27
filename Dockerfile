@@ -46,7 +46,7 @@ ENV ALU_PRIMARY_LANGUAGE="en"
 ENV ALU_PROD_KEYS="/keys/prod.keys"
 ENV ALU_TITLE_KEYS="/keys/title.keys"
 ENV ALU_HOST="0.0.0.0:3000"
-ENV ALU_TITLE_DB_CACHE_DIR="/var/cache/titledb"
+ENV ALU_CACHE_DIR="/var/cache/alumulemu"
 
 
 EXPOSE 3000
