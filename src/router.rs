@@ -790,7 +790,7 @@ pub async fn search_titles(query: Query<SearchQuery>) -> AlumRes<Json<Vec<crate:
 
     tracing::debug!(?query, "Searching for title with query");
 
-    let search = crate::titledb::Metaview::search_all(&query).await?.to_vec();
+    let search = crate::titledb::Title::search(&query).await?.to_vec();
 
     Ok(Json(search))
 }
