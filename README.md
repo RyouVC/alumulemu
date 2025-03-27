@@ -95,6 +95,18 @@ You may also connect to an external SurrealDB instance using WebSockets.
 
 To set the database path, set the `ALU_DATABASE_URL` environment variable to the appropriate URL. For example, to use the RocksDB backend, set `ALU_DATABASE_URL` to `rocksdb:///data`, `surrealkv:///data` for SurrealKV, or `ws://localhost:8000` for an external instance.
 
+### Access titles
+
+Alumulemu provides a web interface for viewing title metadata. You can simply go to the URL of your server in a web browser to access the interface.
+
+#### Using Tinfoil
+
+Alumulemu also provides a Tinfoil-compatible JSON index for use with Tinfoil. You can add the following URL to Tinfoil to access the repository:
+
+```txt
+http://<your-server-ip>:3000/api/tinfoil
+```
+
 ### Running
 
 You can run a Docker/Podman container with the provided example `docker-compose.yml` file.
@@ -108,7 +120,20 @@ You may also build this project from source.
 
 ### Building and developing
 
-Alumulemu is built using Rust and Vue.js.
+Alumulemu is built using:
+
+- Rust for the backend, with the following libraries as its core system:
+  - [Tokio](https://tokio.rs/) for async I/O
+  - [Axum](https://docs.rs/axum/latest/axum/) for the web server
+  - [SurrealDB](https://surrealdb.com/) as the database backend, supporting both embedded and external instances
+  - [nx-archive](https://github.com/RyouVC/nx-archive) for reading and parsing Nintendo Switch archives
+  - [clap](https://github.com/clap-rs/clap) for configuration through environment variables (Although you can also pass them as positional arguments if you really have to)
+  - [struson](https://github.com/Marcono1234/struson) for the streaming JSON parser, used for importing the eShop dataset from <https://github.com/blawar/titledb>
+
+- Vue.js for the web UI, with the following frameworks:
+  - [Tailwind CSS](https://tailwindcss.com/) for styling
+  - [Vue Router](https://router.vuejs.org/) for routing
+  - [DaisyUI](https://daisyui.com/) for additional styling
 
 You will require the following tools to build Alumulemu:
 
@@ -131,3 +156,6 @@ Alumulemu is licensed under the GNU Affero General Public License v3.0. See [LIC
 It is provided as-is with no warranty or guarantee of support. Use at your own risk.
 
 Alumulemu is not affiliated with or endorsed by Nintendo, Team Xecuter, SurrealDB, or any other entity mentioned in this document.
+
+
+[def]: https://github.com/blawar/titledb

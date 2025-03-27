@@ -43,8 +43,10 @@
                         </summary>
                         <ul class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow-md">
                             <li v-for="(label, key) in importers" :key="key">
-                                <a @click.stop="handleImportOption(key)"
-                                    :class="{ 'opacity-50 cursor-not-allowed': isImporting }" :disabled="isImporting">
+                                <a @click.stop="handleImportOption(key)" :class="{
+                                    'opacity-50 cursor-not-allowed': isImporting || disabledOptions[key],
+                                    'line-through text-base-300': disabledOptions[key]
+                                }" :disabled="isImporting || disabledOptions[key]">
                                     {{ label }}
                                 </a>
                             </li>
@@ -63,7 +65,7 @@
                 <div class="pt-4">
                     <input type="file" class="w-full file-input file-input-bordered" @change="handleFileSelected" />
                 </div>
-                <div class="flex justify-end gap-2 mt-6">
+                <div class="flex justify-end gap-2 mt-8">
                     <AluButton @click="closeUploadPopover" size="small">Cancel</AluButton>
                     <AluButton level="primary" :disabled="!selectedFile" @click="uploadSelectedFile" size="small">Upload
                     </AluButton>
@@ -80,7 +82,7 @@
                     <input type="text" placeholder="https://example.com/game.nsp" v-model="downloadUrl"
                         class="w-full input input-bordered" />
                 </div>
-                <div class="flex justify-end gap-2 mt-6">
+                <div class="flex justify-end gap-2 mt-4 pt-4 border-t border-base-300">
                     <AluButton @click="closeUrlDialog" size="small">Cancel</AluButton>
                     <AluButton level="primary" :disabled="!isValidUrl" @click="submitUrlDownload" size="small">Download
                     </AluButton>
@@ -116,6 +118,11 @@ const importers = {
     upload: "Upload file...",
     url: "Download from URL...",
 };
+
+// Add a computed property to identify disabled options
+const disabledOptions = computed(() => ({
+    upload: true // Mark upload as disabled
+}));
 
 const emit = defineEmits(["get-metadata", "import"]);
 const isUploadPopoverOpen = ref(false);
@@ -271,17 +278,15 @@ const handleUrlImport = async (url) => {
 };
 
 const handleImportOption = (key) => {
-    // Don't allow actions while importing
-    if (isImporting.value) return;
+    // Don't allow actions while importing or if the option is disabled
+    if (isImporting.value || disabledOptions.value[key]) return;
 
     // Close dropdown when opening any dialog
     if (dropdownMenu.value) {
         dropdownMenu.value.removeAttribute("open");
     }
 
-    if (key === "upload") {
-        isUploadPopoverOpen.value = true;
-    } else if (key === "url") {
+    if (key === "url") {
         isUrlDialogOpen.value = true;
     } else if (key === "ultranx") {
         handleUltraNXImport(props.game);
