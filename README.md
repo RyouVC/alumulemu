@@ -80,7 +80,7 @@ The region and language code is combined to form the locale code used to query t
 - `ALU_TITLE_KEYS`: The path to the Switch title keys file. This is required to decrypt some titles and DLCs.
 
 - `ALU_HOST`: The host to bind the server to. Defaults to `0.0.0.0:3000`.
-- `ALU_TITLE_DB_CACHE_DIR`: The directory to cache title database files in. Defaults to `.` (current working directory) or `/var/cache/titledb` if running in a container.
+- `ALU_CACHE_DIR`: The directory to cache title database files in. Defaults to `.` (current working directory) or `/var/cache/alumulemu` if running in a container.
 - `ALU_PUBLIC`: Whether to run the server in public mode. Defaults to `false`. If set to `true`, the server will not require authentication to access the API. However administrative endpoints will still require authentication if there are users in the database.
 
 #### Optimizing database performance

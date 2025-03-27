@@ -1,42 +1,52 @@
-import { defineConfig } from "@rsbuild/core";
-import { pluginVue } from "@rsbuild/plugin-vue";
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue } from '@rsbuild/plugin-vue';
 
 export default defineConfig({
+
   plugins: [pluginVue()],
+  resolve: {
+    extensions: ['.ts', '.tsx', '.mjs', '.js', '.jsx', '.json'],
+    // extensionAlias: {
+    //   '.js': ['.ts', '.js'],
+    // },
+  },
   source: {
     entry: {
-      index: "./src/main.js",
+      index: "./src/main.ts",
     },
     alias: {
       "@": "./src",
     },
   },
   server: {
+    printUrls: true,
     port: 5173,
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    baseUrl: "/",
+    base: "/",
     proxy: {
       "/api": "http://localhost:3000",
       "/admin": "http://localhost:3000",
     },
   },
   dev: {
-    hmr: {
-      port: 5173,
-      protocol: "ws",
-    },
+    liveReload: true,
+    hmr: true
+    // hmr: {
+    //   port: 5173,
+    //   protocol: "ws",
+    // },
   },
   html: {
     template: "./index.html",
-    publicPath: "/",
+
   },
   output: {
     distPath: {
       root: "./dist",
     },
-    clean: true,
-    publicPath: "/",
+    cleanDistPath: true,
+
   },
 });
