@@ -19,6 +19,8 @@ pub mod downloader;
 pub mod import_utils;
 pub mod not_ultranx;
 pub mod registry;
+pub mod tests;
+pub mod url;
 #[derive(Error, Debug)]
 pub enum ImportError {
     // IO errors
@@ -116,34 +118,16 @@ pub enum ImportSource {
     RemoteHttp(String),
     /// A remote archive file accessed via HTTP that will be extracted
     RemoteHttpArchive(String),
+    /// A remote HTTP source that will automatically determine if it's an archive based on the downloaded file extension
+    RemoteHttpAuto(String),
     /// (Not implemented) Import from a repository
     Repository,
 }
 
 impl ImportSource {
-    /// Creates a new Local import source
-    pub fn new_local(path: impl Into<PathBuf>) -> Self {
-        Self::Local(path.into())
-    }
-
-    /// Creates a new LocalArchive import source
-    pub fn new_local_archive(path: impl Into<PathBuf>) -> Self {
-        Self::LocalArchive(path.into())
-    }
-
-    /// Creates a new LocalDir import source
-    pub fn new_local_dir(path: impl Into<PathBuf>) -> Self {
-        Self::LocalDir(path.into())
-    }
-
-    /// Creates a new RemoteHttp import source
-    pub fn new_remote_http(url: impl Into<String>) -> Self {
-        Self::RemoteHttp(url.into())
-    }
-
-    /// Creates a new RemoteHttpArchive import source
-    pub fn new_remote_http_archive(url: impl Into<String>) -> Self {
-        Self::RemoteHttpArchive(url.into())
+    /// Creates a new RemoteHttpAuto import source which automatically determines type from file extension
+    pub fn new_remote_http_auto(url: impl Into<String>) -> Self {
+        Self::RemoteHttpAuto(url.into())
     }
 
     pub async fn process(&self) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
@@ -184,6 +168,27 @@ impl ImportSource {
                 }
                 Ok(result)
             }
+            ImportSource::RemoteHttpAuto(url) => {
+                let path = Self::download_http(url).await?;
+
+                // Check if the downloaded file appears to be an archive based on extension
+                let is_archive = self.is_archive_file(&path);
+
+                if is_archive {
+                    info!(path = ?path, "Auto-detected archive file, extracting");
+                    let result = self.extract_archive(&path).await?;
+                    // Delete the downloaded archive after successful extraction
+                    if tokio::fs::remove_file(&path).await.is_err() {
+                        debug!(archive = ?path, "Failed to remove downloaded archive file after extraction");
+                    } else {
+                        info!(archive = ?path, "Removed downloaded archive file after successful extraction");
+                    }
+                    Ok(result)
+                } else {
+                    info!(path = ?path, "Auto-detected regular file (non-archive)");
+                    Ok((vec![path], None))
+                }
+            }
             ImportSource::Remote => unimplemented!(
                 "Generic Remote import source not implemented, this should be a generic remote import, but the details are not yet defined"
             ),
@@ -191,6 +196,42 @@ impl ImportSource {
                 "Repository import source not implemented, This should take in a Tinfoil index"
             ),
         }
+    }
+
+    /// Determine if a file is likely an archive based on its extension
+    fn is_archive_file(&self, path: &Path) -> bool {
+        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
+            matches!(
+                extension.to_lowercase().as_str(),
+                "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz"
+            )
+        } else {
+            false
+        }
+    }
+
+    pub fn new_local(path: impl Into<PathBuf>) -> Self {
+        Self::Local(path.into())
+    }
+
+    /// Creates a new LocalArchive import source
+    pub fn new_local_archive(path: impl Into<PathBuf>) -> Self {
+        Self::LocalArchive(path.into())
+    }
+
+    /// Creates a new LocalDir import source
+    pub fn new_local_dir(path: impl Into<PathBuf>) -> Self {
+        Self::LocalDir(path.into())
+    }
+
+    /// Creates a new RemoteHttp import source
+    pub fn new_remote_http(url: impl Into<String>) -> Self {
+        Self::RemoteHttp(url.into())
+    }
+
+    /// Creates a new RemoteHttpArchive import source
+    pub fn new_remote_http_archive(url: impl Into<String>) -> Self {
+        Self::RemoteHttpArchive(url.into())
     }
 
     pub async fn download_http(url: &str) -> Result<PathBuf> {

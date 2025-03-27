@@ -100,7 +100,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from "vue";
 import { formatFileSize } from "@/util.js";
-import { importGameUltraNX } from "@/utils/import.ts";
+import { importGameUltraNX, importGameURL } from "@/utils/import.ts";
 import AgeRating from "./AgeRating.vue";
 import AluButton from "../AluButton.vue";
 
@@ -234,6 +234,42 @@ const handleUltraNXImport = async (gameMetadata) => {
     }
 };
 
+/**
+ * Handles importing a game from a URL
+ * @param {string} url - The URL to import from
+ */
+const handleUrlImport = async (url) => {
+    if (isImporting.value) return; // Don't allow multiple simultaneous imports
+    isImporting.value = true;
+
+    try {
+        const result = await importGameURL(url);
+        // Check if it's an error or success based on the status field
+        if (result && result.status === "error") {
+            // Show the actual error message from the API response
+            showToastNotification(result.message || "Import failed", "alert-error");
+        } else {
+            // It's a success, show success toast with message
+            showToastNotification(
+                result && result.message ? result.message : "Import successful",
+                "alert-success"
+            );
+        }
+        emitImport("url", result);
+    } catch (error) {
+        console.error("Error importing from URL:", error);
+        // Extract error message from response if available
+        let errorMessage = "Error importing from URL";
+        if (error.message) {
+            // Use the error object's message if available
+            errorMessage = error.message;
+        }
+        showToastNotification(errorMessage, "alert-error");
+    } finally {
+        isImporting.value = false;
+    }
+};
+
 const handleImportOption = (key) => {
     // Don't allow actions while importing
     if (isImporting.value) return;
@@ -281,7 +317,7 @@ const uploadSelectedFile = () => {
 
 const submitUrlDownload = () => {
     if (isValidUrl.value) {
-        emitImport("url", downloadUrl.value);
+        handleUrlImport(downloadUrl.value);
         closeUrlDialog();
     }
 };

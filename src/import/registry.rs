@@ -7,7 +7,7 @@ use std::{
 use once_cell::sync::Lazy;
 use tracing::{debug, info};
 
-use crate::import::{Importer, Result, not_ultranx::NotUltranxImporter};
+use crate::import::{Importer, Result, not_ultranx::NotUltranxImporter, url::UrlImporter};
 
 /// A static global registry for importers
 static IMPORTER_REGISTRY: Lazy<Arc<RwLock<ImporterRegistry>>> =
@@ -66,7 +66,7 @@ impl<T: Importer + Clone + Send + Sync + 'static> ImporterProvider for T {
 #[derive(Default)]
 pub struct ImporterRegistry {
     providers: HashMap<TypeId, Arc<dyn ImporterProvider>>,
-    providers_by_name: HashMap<String, Arc<dyn ImporterProvider>>,
+    pub providers_by_name: HashMap<String, Arc<dyn ImporterProvider>>,
     /// Maps user-friendly names to the actual provider names
     friendly_names: HashMap<String, String>,
 }
@@ -179,6 +179,9 @@ pub fn init_registry() {
     // Register the NotUltranxImporter with a custom ID
     register_with_id("ultranx", NotUltranxImporter::new());
 
+    // Register the UrlImporter with a custom ID
+    register_with_id("url", UrlImporter::new());
+
     // Add more importers here as they become available
 
     info!("Importer registry initialized");
@@ -248,15 +251,35 @@ impl ImporterRegistryIdExt for ImporterRegistry {
                 let type_name = provider.name();
                 type_name.contains("IdImporter") || 
                 // Known implementations
-                type_name.contains("NotUltranxImporter")
+                type_name.contains("NotUltranxImporter") ||
+                type_name.contains("UrlImporter")
             })
             .collect()
     }
 
     fn find_id_importer_for(&self, id: &str) -> Result<Option<Arc<dyn ImporterProvider>>> {
-        // This would be where you implement logic to determine which importer
-        // is appropriate for a given ID based on its format, source, etc.
-        // For now, we'll return the first Id importer we find
+        // Try to determine the appropriate importer based on the ID format
+
+        // First, check if this might be a URL-encoded URL
+        if id.contains("%3A%2F%2F") || (id.starts_with("http") && id.contains("%")) {
+            // Likely a URL-encoded URL
+            debug!(id = id, "Detected URL-encoded input, using UrlImporter");
+            return Ok(self.get_by_name("url"));
+        }
+
+        // Check for title IDs in traditional format (ultranx case)
+        if id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()) {
+            debug!(
+                id = id,
+                "Detected title ID format, using NotUltranxImporter"
+            );
+            return Ok(self.get_by_name("ultranx"));
+        }
+
+        // For other formats, try to find a suitable importer
+        debug!(id = id, "No specific importer detected for ID format");
+
+        // Return the first suitable importer as a fallback
         Ok(self.get_id_importers().into_iter().next())
     }
 }
@@ -280,7 +303,36 @@ pub fn find_id_importer_for(id: &str) -> Result<Option<Arc<dyn ImporterProvider>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::import::not_ultranx::NotUltranxImporter;
+    use crate::import::{ImportSource, url::UrlImporter};
+
+    #[tokio::test]
+    async fn test_url_importer_registration() {
+        // Initialize the registry
+        init_registry();
+
+        // Check that our URL importer is registered
+        let url_importer = get_importer_by_name("url");
+        assert!(url_importer.is_some(), "URL importer should be registered");
+
+        // Test auto-detection for a URL-encoded URL
+        let encoded_url = "https%3A%2F%2Fexample.com%2Fgame.nsp";
+        let importer = find_id_importer_for(encoded_url).unwrap();
+        assert!(
+            importer.is_some(),
+            "Should find an importer for URL-encoded input"
+        );
+
+        // Make sure it's the URL importer that was selected
+        let importer_name = importer.unwrap().name();
+        assert!(
+            importer_name.contains("UrlImporter"),
+            "Selected importer should be UrlImporter, got: {}",
+            importer_name
+        );
+    }
+
+    // Existing tests...
+    use crate::import::{FileImporter, not_ultranx::NotUltranxImporter};
 
     // A simple mock importer for testing
     #[derive(Clone)]

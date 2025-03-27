@@ -169,45 +169,111 @@ impl ImportRequest {
 
 /// Start an import operation using an ID importer
 async fn start_import_by_id(importer: Arc<dyn ImporterProvider>, id: String) -> ImportResult {
-    // For demonstration, we're just using NotUltranxImporter
-    // In a real implementation, you'd use reflection/dynamic dispatch to call the appropriate importer
-
-    if importer.name().contains("NotUltranxImporter") {
-        // Manual dispatch for the specific importer we know about
-        let importer = crate::import::not_ultranx::NotUltranxImporter::new();
-        let import_result = importer.import_by_id(&id, None).await;
-
-        match import_result {
-            Ok(import_source) => {
-                // Spawn a background task to handle the import
-                let id_clone = id.clone();
-                tokio::spawn(async move {
-                    info!("Starting import for ID: {}", id_clone);
-                    if let Err(e) = import_source.import().await {
-                        error!("Failed to import game: {}", e);
-                    } else {
-                        info!("Import completed successfully for ID: {}", id_clone);
-                    }
-
-                    // Trigger a rescan after import
-                    info!("Triggering rescan after import");
-                    let _ = trigger_rescan(Default::default()).await;
-                });
-
-                Ok(Json(serde_json::json!({
-                    "status": "success",
-                    "message": "Import started",
-                    "id": id
-                }))
-                .into_response())
-            }
-            Err(e) => Err(ImportError::from(e)),
+    // Get the actual importer ID from the registry
+    let importer_id = match get_importer_id_from_provider(&importer) {
+        Some(id) => id,
+        None => {
+            return Err(ImportError::ImporterNotFound(format!(
+                "Could not get importer ID for: {}",
+                importer.name()
+            )));
         }
+    };
+
+    // Look up the importer by ID in the registry (this ensures we get a fresh instance)
+    let importer = match crate::import::registry::get_importer_by_name(&importer_id) {
+        Some(provider) => provider,
+        None => {
+            return Err(ImportError::ImporterNotFound(format!(
+                "Importer not found in registry: {}",
+                importer_id
+            )));
+        }
+    };
+
+    // Create a dynamic dispatch call to the appropriate IdImporter implementation
+    // This uses a separate helper to keep this function clean
+    process_id_import(importer, id).await
+}
+
+/// Get the registered importer ID for a provider
+fn get_importer_id_from_provider(provider: &Arc<dyn ImporterProvider>) -> Option<String> {
+    // Try to find the registered ID for this importer type
+    let binding = crate::import::registry::registry();
+    let registry = binding.read().unwrap();
+
+    for (id, registered_provider) in &registry.providers_by_name {
+        if registered_provider.name() == provider.name() {
+            return Some(id.clone());
+        }
+    }
+
+    None
+}
+
+/// Process an import using dynamic dispatch to the appropriate IdImporter implementation
+async fn process_id_import(provider: Arc<dyn ImporterProvider>, id: String) -> ImportResult {
+    use crate::import::IdImporter;
+
+    // Handle known importer types - could be extended with a macro or other approaches
+    // to make this more maintainable as more importers are added
+    let type_name = provider.name();
+
+    // Match on the importer type name to dispatch to the correct implementation
+    let import_result = if type_name.contains("NotUltranxImporter") {
+        let importer_ref = provider
+            .as_any()
+            .downcast_ref::<crate::import::not_ultranx::NotUltranxImporter>()
+            .ok_or_else(|| {
+                ImportError::ImporterNotFound("Failed to downcast to NotUltranxImporter".into())
+            })?;
+
+        // Clone to get ownership for the async call
+        let importer = importer_ref.clone();
+        importer.import_by_id(&id, None).await
+    } else if type_name.contains("UrlImporter") {
+        let importer_ref = provider
+            .as_any()
+            .downcast_ref::<crate::import::url::UrlImporter>()
+            .ok_or_else(|| {
+                ImportError::ImporterNotFound("Failed to downcast to UrlImporter".into())
+            })?;
+
+        // Clone to get ownership for the async call
+        let importer = importer_ref.clone();
+        importer.import_by_id(&id, None).await
     } else {
-        Err(ImportError::ImporterNotFound(format!(
-            "Currently only NotUltranxImporter is supported, found: {}",
-            importer.name()
-        )))
+        return Err(ImportError::ImporterNotFound(format!(
+            "Unsupported importer type for dynamic dispatch: {}",
+            type_name
+        )));
+    };
+
+    // Process the result of the import
+    match import_result {
+        Ok(import_source) => {
+            // Spawn a background task to handle the import
+            let id_clone = id.clone();
+            tokio::spawn(async move {
+                info!("Starting import for ID: {}", id_clone);
+                if let Err(e) = import_source.import().await {
+                    error!("Failed to import game: {}", e);
+                } else {
+                    info!("Import completed successfully for ID: {}", id_clone);
+                }
+                // Trigger a rescan after import
+                info!("Triggering rescan after import");
+                let _ = trigger_rescan(Default::default()).await;
+            });
+
+            Ok(Json(serde_json::json!({
+                "status": "success",
+                "message": "Import started",
+                "id": id
+            }))
+            .into_response())
+        }
+        Err(e) => Err(ImportError::from(e)),
     }
 }
 
