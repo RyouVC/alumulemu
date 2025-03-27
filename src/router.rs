@@ -8,9 +8,12 @@ use crate::util::format_download_id;
 use crate::util::format_game_name;
 use axum::{
     Json,
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    extract::Request,
+    http::{StatusCode, Uri},
+    middleware::{self, Next},
+    response::{IntoResponse, Redirect, Response},
 };
+use std::time::Instant;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -418,6 +421,62 @@ pub async fn generate_index_from_metadata() -> color_eyre::eyre::Result<Index> {
     Ok(idx)
 }
 
+// Middleware to handle trailing slashes
+async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse {
+    let uri = req.uri().clone();
+    let path = uri.path();
+
+    // If path has a trailing slash and is not the root path
+    if path.len() > 1 && path.ends_with('/') {
+        // Create new URI without the trailing slash
+        let new_path = path.trim_end_matches('/');
+        let new_uri_parts = uri.clone().into_parts();
+        let new_path_and_query = match uri.query() {
+            Some(query) => format!("{}?{}", new_path, query),
+            None => new_path.to_string(),
+        };
+
+        // Try to convert to a valid URI
+        if let Ok(new_uri) = Uri::try_from(new_path_and_query) {
+            // Redirect to the normalized path
+            tracing::debug!("Redirecting from {} to {}", path, new_path);
+            return Redirect::permanent(&new_uri.to_string()).into_response();
+        }
+    }
+
+    next.run(req).await
+}
+
+// Middleware function to log requests
+async fn log_request(req: Request, next: Next) -> impl IntoResponse {
+    let path = req.uri().path().to_owned();
+    let method = req.method().clone();
+
+    // Extract and format request headers
+    let headers = req
+        .headers()
+        .iter()
+        .map(|(name, value)| format!("{}: {}", name, value.to_str().unwrap_or("[binary]")))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let start = Instant::now();
+
+    tracing::trace!("Request started: {} {}\nHeaders: {}", method, path, headers);
+
+    let response = next.run(req).await;
+
+    let duration = start.elapsed();
+    tracing::trace!("Request completed: {} {} in {:?}", method, path, duration);
+
+    response
+}
+
 pub fn create_router() -> axum::Router {
-    create_backend_router()
+    let router = create_backend_router();
+
+    // Apply middlewares - normalize paths first, then log requests
+    router
+        .layer(middleware::from_fn(log_request))
+        .layer(middleware::from_fn(normalize_trailing_slash))
 }

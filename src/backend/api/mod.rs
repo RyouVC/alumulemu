@@ -11,7 +11,7 @@ pub mod metadata;
 
 pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
     let games = generate_index_from_metadata().await?;
-    tracing::trace!("Games retrieved: {:?}", games);
+    // tracing::trace!("Games retrieved: {:?}", games);
     Ok(Json(games))
 }
 
