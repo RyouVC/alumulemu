@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::backend::api::api_router;
-use crate::backend::user::{basic_auth, basic_auth_if_public, user_router};
+use crate::backend::user::{basic_auth, basic_auth_if_public};
 
 /// Create the main backend router
 pub fn create_router() -> Router {

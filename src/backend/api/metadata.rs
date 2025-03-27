@@ -1,16 +1,15 @@
 // filepath: /home/cappy/Projects/alumulemu/src/backend/api/metadata.rs
 use axum::{
-    extract::{Path, Query},
     Json,
-    response::{IntoResponse, Response},
+    extract::{Path, Query},
+    response::IntoResponse,
 };
 use http::StatusCode;
 
 use crate::{
     db::NspMetadata,
-    index::TinfoilResponse,
     router::AlumRes,
-    titledb::{GameFileDataNaive, Metaview, Title},
+    titledb::{Metaview, Title},
 };
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -105,9 +104,7 @@ pub async fn list_grouped_by_titleid(
         .filter(|m| m.title_id.starts_with(&base_game_id[..12]))
     {
         if !metadata.title_id.ends_with("000") {
-            if let Ok(Some(title)) =
-                Title::get_from_metaview_cache(&metadata.title_id).await
-            {
+            if let Ok(Some(title)) = Title::get_from_metaview_cache(&metadata.title_id).await {
                 versions.push(title);
             }
         }
@@ -134,9 +131,7 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
     Ok(Json(base_games).into_response())
 }
 
-pub async fn search_titledb(
-    query: Query<SearchQuery>,
-) -> AlumRes<Json<Vec<Title>>> {
+pub async fn search_titledb(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>>> {
     tracing::debug!(?query, "Searching for title with query");
 
     let search = Title::search(&query).await?;
@@ -144,16 +139,12 @@ pub async fn search_titledb(
     Ok(Json(search))
 }
 
-pub async fn search_base_game(
-    query: Query<SearchQuery>,
-) -> AlumRes<Json<Vec<Title>>> {
+pub async fn search_base_game(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>>> {
     let query = query.0;
 
     tracing::debug!(?query, "Searching for base game with query");
 
-    let search = Metaview::search_base_game(&query)
-        .await?
-        .to_vec();
+    let search = Metaview::search_base_game(&query).await?.to_vec();
 
     Ok(Json(search))
 }

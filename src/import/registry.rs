@@ -1,14 +1,13 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use once_cell::sync::Lazy;
 use tracing::{debug, info};
 
-use crate::import::{FileImporter, IdImporter, Importer, Result, not_ultranx::NotUltranxImporter};
+use crate::import::{Importer, Result, not_ultranx::NotUltranxImporter};
 
 /// A static global registry for importers
 static IMPORTER_REGISTRY: Lazy<Arc<RwLock<ImporterRegistry>>> =

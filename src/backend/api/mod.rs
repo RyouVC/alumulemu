@@ -1,5 +1,4 @@
 use crate::{
-    backend::user::list_users,
     index::Index,
     router::{AlumRes, generate_index_from_metadata},
 };

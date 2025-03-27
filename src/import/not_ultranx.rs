@@ -1,5 +1,3 @@
-use std::default;
-
 use super::{IdImporter, Importer, Result};
 use scraper::{Html, Selector};
 

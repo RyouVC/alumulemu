@@ -1,6 +1,6 @@
 use crate::LOCALE;
-use crate::db::{DB, NspMetadata, create_precomputed_metaview};
 use crate::backend::api::metadata::SearchQuery;
+use crate::db::{DB, NspMetadata, create_precomputed_metaview};
 use crate::util::format_download_id;
 use color_eyre::Result;
 use regex::Regex;
