@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
 };
+use tower_http::services::ServeDir;
 
 use crate::backend::api::api_router;
 use crate::backend::user::{basic_auth, basic_auth_if_public};
@@ -14,6 +15,8 @@ pub fn create_router() -> Router {
         .nest("/api", api_router())
         // Admin routes
         .nest("/admin", admin_router())
+        // Static files from alu-panel/dist
+        .merge(static_router())
         // Fallback for web UI
         // todo: bundle into executable
         .fallback(|| async {
@@ -23,6 +26,25 @@ pub fn create_router() -> Router {
             }
         })
         .layer(axum::middleware::from_fn(basic_auth_if_public))
+}
+
+pub fn static_router() -> Router {
+    Router::new()
+        // Static files from alu-panel/dist
+        .nest_service("/static", ServeDir::new("alu-panel/dist/static"))
+        .route(
+            "/favicon.ico",
+            axum::routing::get(|| async {
+                Html(std::fs::read_to_string("alu-panel/dist/favicon.ico").unwrap())
+            }),
+        )
+        // Fallback for web UI
+        .fallback(|| async {
+            match std::fs::read_to_string("alu-panel/dist/index.html") {
+                Ok(contents) => Html(contents).into_response(),
+                Err(_) => StatusCode::NOT_FOUND.into_response(),
+            }
+        })
 }
 
 /// Create the admin router with authentication
