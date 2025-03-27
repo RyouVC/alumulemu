@@ -128,7 +128,7 @@
                             </div>
                         </div>
 
-                        <div id="intro" class="my-4">
+                        <div id="intro" class="my-4" v-if="metadata.intro && metadata.intro.trim()">
                             <blockquote class="px-4 py-3 text-lg italic border-l-4 rounded-r-lg border-primary bg-base-200/50">
                                 {{ metadata.intro }}
                             </blockquote>
@@ -139,10 +139,10 @@
                         </div>
 
                         <div id="test-alulist">
-                            <AluList>
+                            <!-- <AluList>
                                 <AluListRow :game="metadata">
                                 </AluListRow>
-                            </AluList>
+                            </AluList> -->
                         </div>
 
                         <div class="pt-4" id="extra-info-container">
