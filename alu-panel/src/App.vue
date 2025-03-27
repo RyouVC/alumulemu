@@ -19,6 +19,11 @@
                     class="font-bold text-gray-800 no-underline mx-2.5 router-link-active:text-green-500"
                     >Users</RouterLink
                 >
+                <RouterLink
+                    to="/titledb"
+                    class="font-bold text-gray-800 no-underline mx-2.5 router-link-active:text-green-500"
+                    >TitleDB</RouterLink
+                >
             </div>
         </nav>
 

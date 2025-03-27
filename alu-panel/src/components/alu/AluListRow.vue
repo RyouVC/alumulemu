@@ -1,11 +1,17 @@
 <template>
-    <li @click="emitGetMetadata"
-        class="flex items-center p-4 transition-colors rounded-lg cursor-pointer hover:bg-base-200">
+    <li
+        @click="emitGetMetadata"
+        class="flex items-center p-4 transition-colors rounded-lg cursor-pointer hover:bg-base-200"
+    >
         <!-- Game icon -->
         <div class="mr-4">
             <slot name="leading">
-                <img v-if="game.iconUrl" :src="game.iconUrl" :alt="game.name"
-                    class="object-cover w-48 h-48 rounded-md" />
+                <img
+                    v-if="game.iconUrl"
+                    :src="game.iconUrl"
+                    :alt="game.name"
+                    class="object-cover w-48 h-48 rounded-md"
+                />
             </slot>
         </div>
         <!-- Game info -->
@@ -14,17 +20,24 @@
                 <div class="text-2xl font-bold">{{ game.name }}</div>
             </slot>
 
-
             <slot name="subtitle">
                 <div class="text-lg opacity-70">{{ game.publisher }}</div>
             </slot>
-            <div class="flex py-2 mt-2 mb-2 space-x-4" id="game-horizontal-badgelist">
+            <div
+                class="flex py-2 mt-2 mb-2 space-x-4"
+                id="game-horizontal-badgelist"
+            >
                 <slot>
-                    <div class="px-2 text-base opacity-60">{{ formattedSize }}</div>
+                    <div class="px-2 text-base opacity-60">
+                        {{ formattedSize }}
+                    </div>
                 </slot>
-                <AgeRating :rating="game.rating" :age-rating="game.ageRating" class="px-2" />
+                <AgeRating
+                    :rating="game.rating"
+                    :age-rating="game.ageRating"
+                    class="px-2"
+                />
             </div>
-
 
             <div id="game-intro" class="pt-2 text-lg">
                 {{ game.intro }}
@@ -36,10 +49,10 @@
             <slot name="actions">
                 <div class="relative">
                     <details class="dropdown dropdown-end" ref="dropdownMenu">
-                        <summary class="btn btn-primary btn-lg">
-                            Import
-                        </summary>
-                        <ul class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow-md">
+                        <summary class="btn btn-primary btn-lg">Import</summary>
+                        <ul
+                            class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow-md"
+                        >
                             <li v-for="(label, key) in importers" :key="key">
                                 <a @click.stop="handleImportOption(key)">
                                     {{ label }}
@@ -47,72 +60,98 @@
                             </li>
                         </ul>
                     </details>
-
-                    <!-- Fixed position file upload modal -->
-                    <div v-if="isUploadPopoverOpen"
-                        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-                        @click.self="closeUploadPopover">
-                        <div class="p-6 rounded-lg shadow-xl bg-base-100 w-96 max-w-[90vw]">
-                            <h3 class="mb-4 text-xl font-bold">Upload Game File</h3>
-                            <div class="pt-4">
-                                <input type="file" class="w-full file-input file-input-bordered"
-                                    @change="handleFileSelected" />
-                            </div>
-                            <div class="flex justify-end gap-2 mt-6">
-                                <AluButton @click="closeUploadPopover" size="small">Cancel</AluButton>
-                                <AluButton level="primary" :disabled="!selectedFile" @click="uploadSelectedFile"
-                                    size="small">Upload</AluButton>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- URL download modal -->
-                    <div v-if="isUrlDialogOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-                        @click.self="closeUrlDialog">
-                        <div class="p-6 rounded-lg shadow-xl bg-base-100 w-96 max-w-[90vw]">
-                            <h3 class="mb-4 text-xl font-bold">Download from URL</h3>
-                            <div class="pt-4 form-control">
-
-                                <input type="text" placeholder="https://example.com/game.nsp" v-model="downloadUrl"
-                                    class="w-full input input-bordered" />
-                            </div>
-                            <div class="flex justify-end gap-2 mt-6">
-                                <AluButton @click="closeUrlDialog" size="small">Cancel</AluButton>
-                                <AluButton level="primary" :disabled="!isValidUrl" @click="submitUrlDownload"
-                                    size="small">Download</AluButton>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </slot>
         </div>
     </li>
+    <Teleport to="body">
+        <!-- Upload modal -->
+        <div
+            v-if="isUploadPopoverOpen"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+            @click.self="closeUploadPopover"
+        >
+            <div class="p-6 rounded-lg shadow-xl bg-base-100 w-96 max-w-[90vw]">
+                <h3 class="mb-4 text-xl font-bold">Upload Game File</h3>
+                <div class="pt-4">
+                    <input
+                        type="file"
+                        class="w-full file-input file-input-bordered"
+                        @change="handleFileSelected"
+                    />
+                </div>
+                <div class="flex justify-end gap-2 mt-6">
+                    <AluButton @click="closeUploadPopover" size="small"
+                        >Cancel</AluButton
+                    >
+                    <AluButton
+                        level="primary"
+                        :disabled="!selectedFile"
+                        @click="uploadSelectedFile"
+                        size="small"
+                        >Upload</AluButton
+                    >
+                </div>
+            </div>
+        </div>
+
+        <!-- URL download modal -->
+        <div
+            v-if="isUrlDialogOpen"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+            @click.self="closeUrlDialog"
+        >
+            <div class="p-6 rounded-lg shadow-xl bg-base-100 w-96 max-w-[90vw]">
+                <h3 class="mb-4 text-xl font-bold">Download from URL</h3>
+                <div class="pt-4 form-control">
+                    <input
+                        type="text"
+                        placeholder="https://example.com/game.nsp"
+                        v-model="downloadUrl"
+                        class="w-full input input-bordered"
+                    />
+                </div>
+                <div class="flex justify-end gap-2 mt-6">
+                    <AluButton @click="closeUrlDialog" size="small"
+                        >Cancel</AluButton
+                    >
+                    <AluButton
+                        level="primary"
+                        :disabled="!isValidUrl"
+                        @click="submitUrlDownload"
+                        size="small"
+                        >Download</AluButton
+                    >
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { formatFileSize } from '../../util.js';
-import AgeRating from './AgeRating.vue';
-import AluButton from '../AluButton.vue';
+import { computed, ref, onMounted, onUnmounted } from "vue";
+import { formatFileSize } from "../../util.js";
+import AgeRating from "./AgeRating.vue";
+import AluButton from "../AluButton.vue";
 
 const props = defineProps({
     game: {
         type: Object,
-        required: true
-    }
+        required: true,
+    },
 });
 
 const importers = {
-    'ultranx': 'UltraNX',
-    'upload': 'Upload file...',
-    'url': 'Download from URL...'
+    ultranx: "UltraNX",
+    upload: "Upload file...",
+    url: "Download from URL...",
 };
 
-const emit = defineEmits(['get-metadata', 'import']);
+const emit = defineEmits(["get-metadata", "import"]);
 const isUploadPopoverOpen = ref(false);
 const isUrlDialogOpen = ref(false);
 const selectedFile = ref(null);
-const downloadUrl = ref('');
+const downloadUrl = ref("");
 const dropdownMenu = ref(null);
 
 const formattedSize = computed(() => {
@@ -123,7 +162,7 @@ const isValidUrl = computed(() => {
     if (!downloadUrl.value) return false;
     try {
         const url = new URL(downloadUrl.value);
-        return url.protocol === 'http:' || url.protocol === 'https:';
+        return url.protocol === "http:" || url.protocol === "https:";
     } catch (e) {
         return false;
     }
@@ -135,18 +174,18 @@ const emitGetMetadata = (event) => {
         event.stopPropagation();
         return;
     }
-    emit('get-metadata', props.game.titleId);
+    emit("get-metadata", props.game.titleId);
 };
 
 const handleImportOption = (key) => {
     // Close dropdown when opening any dialog
     if (dropdownMenu.value) {
-        dropdownMenu.value.removeAttribute('open');
+        dropdownMenu.value.removeAttribute("open");
     }
 
-    if (key === 'upload') {
+    if (key === "upload") {
         isUploadPopoverOpen.value = true;
-    } else if (key === 'url') {
+    } else if (key === "url") {
         isUrlDialogOpen.value = true;
     } else {
         emitImport(key);
@@ -154,7 +193,7 @@ const handleImportOption = (key) => {
 };
 
 const emitImport = (key, payload = null) => {
-    emit('import', key, payload);
+    emit("import", key, payload);
 };
 
 const closeUploadPopover = () => {
@@ -164,7 +203,7 @@ const closeUploadPopover = () => {
 
 const closeUrlDialog = () => {
     isUrlDialogOpen.value = false;
-    downloadUrl.value = '';
+    downloadUrl.value = "";
 };
 
 const handleFileSelected = (event) => {
@@ -173,31 +212,35 @@ const handleFileSelected = (event) => {
 
 const uploadSelectedFile = () => {
     if (selectedFile.value) {
-        emitImport('upload', selectedFile.value);
+        emitImport("upload", selectedFile.value);
         closeUploadPopover();
     }
 };
 
 const submitUrlDownload = () => {
     if (isValidUrl.value) {
-        emitImport('url', downloadUrl.value);
+        emitImport("url", downloadUrl.value);
         closeUrlDialog();
     }
 };
 
 // Close popover when clicking outside
 const handleClickOutside = (event) => {
-    if (isUploadPopoverOpen.value && uploadPopover.value && !uploadPopover.value.contains(event.target)) {
+    if (
+        isUploadPopoverOpen.value &&
+        uploadPopover.value &&
+        !uploadPopover.value.contains(event.target)
+    ) {
         closeUploadPopover();
     }
 };
 
 onMounted(() => {
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
 });
 
 onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener("click", handleClickOutside);
 });
 </script>
 

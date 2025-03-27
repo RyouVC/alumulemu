@@ -22,12 +22,9 @@
                         required
                         class="px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                     />
-                    <button
-                        type="submit"
-                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                    >
+                    <AluButton type="submit" size="medium">
                         Create User
-                    </button>
+                    </AluButton>
                 </form>
             </div>
             <br />
@@ -40,12 +37,13 @@
                         class="py-4 px-2 flex justify-between items-center"
                     >
                         <span class="text-white">{{ user.username }}</span>
-                        <button
+                        <AluButton
                             @click="deleteUser(user.username)"
-                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                            size="small"
+                            level="danger"
                         >
                             Delete
-                        </button>
+                        </AluButton>
                     </li>
                 </ul>
             </div>
@@ -55,6 +53,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import AluButton from "@/components/AluButton.vue";
 
 const users = ref([]);
 const newUser = ref({
