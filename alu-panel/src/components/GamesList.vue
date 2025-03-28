@@ -1,11 +1,11 @@
 <template>
     <!-- Main container with background and blur effect -->
-    <div class="min-h-screen bg-gradient-to-br from-base-300/20 to-primary/10">
+    <div class="min-h-screen bg-gradient-to-br from-base-300/20 to-primary/10 flex items-start justify-center w-full">
         <!-- Content container with backdrop blur -->
-        <div class="backdrop-blur-sm">
-            <div class="container px-4 pt-8 mx-auto mt-16 md:px-8 lg:px-16">
+        <div class="backdrop-blur-sm w-full">
+            <div class="container px-4 pt-8 mx-auto mt-16 md:px-8 lg:px-16 flex flex-col items-center">
                 <!-- Header section with search and rescan button -->
-                <div class="flex flex-col gap-4 py-8 md:flex-row md:items-center">
+                <div class="flex flex-col gap-4 py-8 md:flex-row md:items-center w-full">
                     <h1 class="text-2xl font-bold text-base-content">Games</h1>
 
                     <!-- Search input with DaisyUI styling -->
@@ -28,35 +28,39 @@
                     </AluButton>
                 </div>
 
-                <!-- Status indicator -->
-                <div v-if="loadingError" class="mb-4 alert alert-error">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 stroke-current shrink-0" fill="none"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{{ loadingError }}</span>
-                </div>
+                <!-- Center align the content after the search bar -->
+                <div class="flex flex-col items-center w-full">
+                    <!-- Status indicator -->
+                    <div v-if="loadingError" class="mb-4 alert alert-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 stroke-current shrink-0" fill="none"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{{ loadingError }}</span>
+                    </div>
 
-                <!-- Loading indicator - Only show while loading -->
-                <div v-if="isLoading" class="flex justify-center my-8">
-                    <span class="loading loading-spinner loading-lg text-primary"></span>
-                </div>
+                    <!-- Loading indicator - Only show while loading -->
+                    <div v-if="isLoading" class="flex justify-center my-8">
+                        <span class="loading loading-spinner loading-lg text-primary"></span>
+                    </div>
 
-                <!-- Games grid with DaisyUI responsive classes -->
-                <div v-if="games.length > 0"
-                    class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                    <GameTitleButton v-for="game in games" :key="game.titleId" :game="game" @get-metadata="getMetadata"
-                        class="transition-colors duration-200 shadow-lg card bg-base-200 hover:bg-base-300" />
-                </div>
+                    <!-- Games grid with DaisyUI responsive classes -->
+                    <div v-if="games.length > 0"
+                        class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 justify-center">
+                        <GameTitleButton v-for="game in games" :key="game.titleId" :game="game"
+                            @get-metadata="getMetadata"
+                            class="transition-colors duration-200 shadow-lg card bg-base-200 hover:bg-base-300" />
+                    </div>
 
-                <!-- Empty state -->
-                <div v-if="games.length === 0 && !isLoading && !loadingError"
-                    class="p-6 my-8 text-center card bg-base-200">
-                    <h3 class="text-xl font-bold">No games found</h3>
-                    <p class="text-base-content/70">
-                        {{ searchQuery ? 'Try a different search term' : 'No games found in your library' }}
-                    </p>
+                    <!-- Empty state -->
+                    <div v-if="games.length === 0 && !isLoading && !loadingError"
+                        class="p-6 my-8 text-center card bg-base-200">
+                        <h3 class="text-xl font-bold">No games found</h3>
+                        <p class="text-base-content/70">
+                            {{ searchQuery ? 'Try a different search term' : 'No games found in your library' }}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
