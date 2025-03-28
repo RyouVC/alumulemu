@@ -1,37 +1,41 @@
 <template>
     <!-- Main container with background and blur effect -->
-    <div class="min-h-screen bg-gradient-to-br from-base-300/20 to-primary/10 flex items-start justify-center w-full">
+    <div id="games-main-container"
+        class="min-h-screen bg-gradient-to-br from-base-300/20 to-primary/10 flex flex-col items-center justify-start w-full">
         <!-- Content container with backdrop blur -->
-        <div class="backdrop-blur-sm w-full">
-            <div class="container px-4 pt-8 mx-auto mt-16 md:px-8 lg:px-16 flex flex-col items-center">
+        <div id="games-backdrop-container" class="backdrop-blur-sm w-full flex flex-col items-center">
+            <div id="games-content-wrapper" class="container px-4 pt-8 mx-auto mt-16 md:px-8 lg:px-16">
                 <!-- Header section with search and rescan button -->
-                <div class="flex flex-col gap-4 py-8 md:flex-row md:items-center w-full">
-                    <h1 class="text-2xl font-bold text-base-content">Games</h1>
+                <div id="games-search-container" class="flex flex-col gap-4 py-8 md:flex-row w-full justify-start">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-center">
+                        <h1 class="text-2xl font-bold text-base-content">Games</h1>
 
-                    <!-- Search input with DaisyUI styling -->
-                    <div class="flex-1 max-w-md join">
-                        <input type="text" v-model="searchQuery" placeholder="Search games..."
-                            class="w-full input input-bordered join-item" />
-                        <button class="btn join-item">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </button>
+                        <!-- Search input with DaisyUI styling -->
+                        <div id="games-search-input" class="flex-1 max-w-md join">
+                            <input type="text" v-model="searchQuery" placeholder="Search games..."
+                                class="w-full input input-bordered join-item" />
+                            <button class="btn join-item">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Already using AluButton component -->
+                        <AluButton id="games-rescan-button" @click="rescanGames" @click.shift="forceRescanGames"
+                            level="success" size="small" variant="soft" :loading="isScanning" :disabled="isScanning">
+                            {{ isScanning ? "Scanning..." : "Rescan Games" }}
+                        </AluButton>
                     </div>
-
-                    <!-- Already using AluButton component -->
-                    <AluButton @click="rescanGames" @click.shift="forceRescanGames" level="success" size="small"
-                        variant="soft" :loading="isScanning" :disabled="isScanning">
-                        {{ isScanning ? "Scanning..." : "Rescan Games" }}
-                    </AluButton>
                 </div>
 
-                <!-- Center align the content after the search bar -->
-                <div class="flex flex-col items-center w-full">
+                <!-- Game content area -->
+                <div id="games-content-area" class="flex flex-col items-center w-full">
                     <!-- Status indicator -->
-                    <div v-if="loadingError" class="mb-4 alert alert-error">
+                    <div id="games-error-message" v-if="loadingError"
+                        class="mb-4 alert alert-error w-full max-w-screen-2xl mx-auto">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 stroke-current shrink-0" fill="none"
                             viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -41,21 +45,21 @@
                     </div>
 
                     <!-- Loading indicator - Only show while loading -->
-                    <div v-if="isLoading" class="flex justify-center my-8">
+                    <div id="games-loading-indicator" v-if="isLoading" class="flex justify-center my-8 w-full">
                         <span class="loading loading-spinner loading-lg text-primary"></span>
                     </div>
 
-                    <!-- Games grid with DaisyUI responsive classes -->
-                    <div v-if="games.length > 0"
-                        class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 justify-center">
+                    <!-- Games grid with DaisyUI responsive classes - Updated with more columns for smaller screens -->
+                    <div id="games-grid" v-if="games.length > 0"
+                        class="grid grid-cols-2 gap-3 xs:grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 justify-items-center w-full max-w-screen-2xl mx-auto sm:gap-4 md:gap-5 lg:gap-6">
                         <GameTitleButton v-for="game in games" :key="game.titleId" :game="game"
                             @get-metadata="getMetadata"
                             class="transition-colors duration-200 shadow-lg card bg-base-200 hover:bg-base-300" />
                     </div>
 
                     <!-- Empty state -->
-                    <div v-if="games.length === 0 && !isLoading && !loadingError"
-                        class="p-6 my-8 text-center card bg-base-200">
+                    <div id="games-empty-state" v-if="games.length === 0 && !isLoading && !loadingError"
+                        class="p-6 my-8 text-center card bg-base-200 max-w-md mx-auto">
                         <h3 class="text-xl font-bold">No games found</h3>
                         <p class="text-base-content/70">
                             {{ searchQuery ? 'Try a different search term' : 'No games found in your library' }}

@@ -6,12 +6,12 @@
             class="object-cover w-full h-full transition-all duration-300 group-hover:blur-sm group-hover:scale-105" />
         <!-- Hover Overlay -->
         <div
-            class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center transition-opacity duration-300 opacity-0 bg-gray-900/80 group-hover:opacity-100 backdrop-blur-sm">
-            <h3 class="mb-2 text-xl font-bold text-white">
+            class="absolute inset-0 flex flex-col items-center justify-center p-2 sm:p-4 text-center transition-opacity duration-300 opacity-0 bg-gray-900/80 group-hover:opacity-100 backdrop-blur-sm">
+            <h3 class="mb-1 sm:mb-2 text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white">
                 {{ game.name }}
             </h3>
-            <p class="mb-2 text-gray-300">{{ game.publisher }}</p>
-            <p class="text-gray-300">
+            <p class="mb-1 sm:mb-2 text-xs sm:text-sm md:text-base text-gray-300">{{ game.publisher }}</p>
+            <p class="text-xs sm:text-sm md:text-base text-gray-300">
                 Size: {{ formattedSize }}
             </p>
         </div>
