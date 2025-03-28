@@ -31,7 +31,6 @@ Alumulemu exports the repository as a [Tinfoil index](https://blawar.github.io/t
 - Tinfoil Theme repository support
   - Blacklist/whitelist for specific themes
   - Optional MOTD support (Currently disabled explicitly in alumulemu)
-- RBAC support for the web interface and API.
 
 ## "Alumulemu"? What??
 
