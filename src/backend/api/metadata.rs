@@ -1,8 +1,8 @@
-// filepath: /home/cappy/Projects/alumulemu/src/backend/api/metadata.rs
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, Query},
     response::IntoResponse,
+    routing::get,
 };
 use http::StatusCode;
 
@@ -31,16 +31,20 @@ pub async fn title_meta(
     Path(title_id_param): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::trace!("Getting title metadata for {}", title_id_param);
-    
+
     // Then get the title info from metaview cache with better error handling
     match Title::get_from_metaview_cache(&title_id_param).await {
         Ok(Some(title)) => Ok(Json(title).into_response()),
         Ok(None) => {
             tracing::warn!("Title not found for ID: {}", title_id_param);
             Err(StatusCode::NOT_FOUND)
-        },
+        }
         Err(e) => {
-            tracing::error!("Database error when fetching title {}: {}", title_id_param, e);
+            tracing::error!(
+                "Database error when fetching title {}: {}",
+                title_id_param,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -52,7 +56,7 @@ pub async fn title_meta_base_game(
     Path(title_id_param): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::trace!("Getting base game metadata for {}", title_id_param);
-    
+
     // Get all metadata entries with better error handling
     let nsp_metadata = match NspMetadata::get_all().await {
         Ok(metadata) => metadata,
@@ -61,16 +65,16 @@ pub async fn title_meta_base_game(
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-    
+
     // Validate title_id_param length before extracting substring
     if title_id_param.len() < 12 {
         tracing::error!("Invalid title ID format: {}", title_id_param);
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     // Find base game that matches first 12 chars and ends with 000
     let base_game_id = &title_id_param[..12];
-    
+
     let base_metadata = match nsp_metadata
         .iter()
         .find(|m| m.title_id.starts_with(base_game_id) && m.title_id.ends_with("000"))
@@ -81,14 +85,17 @@ pub async fn title_meta_base_game(
             return Err(StatusCode::NOT_FOUND);
         }
     };
-    
+
     // Get full title info from cache using the found base game ID
     match Title::get_from_metaview_cache(&base_metadata.title_id).await {
         Ok(Some(title)) => Ok(Json(title)),
         Ok(None) => {
-            tracing::warn!("Title metadata not found for ID: {}", base_metadata.title_id);
+            tracing::warn!(
+                "Title metadata not found for ID: {}",
+                base_metadata.title_id
+            );
             Err(StatusCode::NOT_FOUND)
-        },
+        }
         Err(e) => {
             tracing::error!("Database error: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -118,7 +125,7 @@ pub async fn list_grouped_by_titleid(
         tracing::error!("Invalid title ID format (too short): {}", title_id_param);
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     let nsp_metadata = match NspMetadata::get_all().await {
         Ok(metadata) => metadata,
         Err(e) => {
@@ -126,9 +133,9 @@ pub async fn list_grouped_by_titleid(
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-    
+
     let base_game_id = title_id_param[..12].to_string();
-    
+
     // First try to find the base game in our local metadata
     let base_game_metadata = match nsp_metadata
         .iter()
@@ -140,22 +147,25 @@ pub async fn list_grouped_by_titleid(
             return Err(StatusCode::NOT_FOUND);
         }
     };
-    
+
     // Then get the full title info from cache
     let base_game = match Title::get_from_metaview_cache(&base_game_metadata.title_id).await {
         Ok(Some(title)) => title,
         Ok(None) => {
-            tracing::warn!("Title metadata not found for ID: {}", base_game_metadata.title_id);
+            tracing::warn!(
+                "Title metadata not found for ID: {}",
+                base_game_metadata.title_id
+            );
             return Err(StatusCode::NOT_FOUND);
-        },
+        }
         Err(e) => {
             tracing::error!("Database error: {}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-    
+
     let mut versions = Vec::new();
-    
+
     for metadata in nsp_metadata
         .iter()
         .filter(|m| m.title_id.starts_with(&base_game_id))
@@ -166,7 +176,7 @@ pub async fn list_grouped_by_titleid(
                 Ok(None) => {
                     tracing::debug!("No title metadata for ID: {}", metadata.title_id);
                     // Continue without this version rather than failing
-                },
+                }
                 Err(e) => {
                     tracing::warn!("Error getting metadata for {}: {}", metadata.title_id, e);
                     // Continue without this version rather than failing
@@ -174,12 +184,12 @@ pub async fn list_grouped_by_titleid(
             }
         }
     }
-    
+
     let response = GroupedGameListResponse {
         base_game,
         versions,
     };
-    
+
     Ok(Json(response).into_response())
 }
 
@@ -192,9 +202,9 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
                 .into_iter()
                 .filter_map(|meta| meta.title)
                 .collect::<Vec<_>>();
-                
+
             Ok(Json(filtered_games).into_response())
-        },
+        }
         Err(e) => {
             tracing::error!("Failed to get base games: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -204,7 +214,7 @@ pub async fn list_base_games() -> Result<impl IntoResponse, StatusCode> {
 
 pub async fn search_titledb(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>>> {
     tracing::debug!(?query, "Searching for title with query");
-    
+
     match Title::search(&query).await {
         Ok(search) => Ok(Json(search)),
         Err(e) => {
@@ -217,7 +227,7 @@ pub async fn search_titledb(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title
 pub async fn search_base_game(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>>> {
     let query = query.0;
     tracing::debug!(?query, "Searching for base game with query");
-    
+
     match Metaview::search_base_game(&query).await {
         Ok(search) => Ok(Json(search)),
         Err(e) => {
@@ -230,7 +240,7 @@ pub async fn search_base_game(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Tit
 pub async fn search_titles(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>>> {
     let query = query.0;
     tracing::debug!(?query, "Searching for title with query");
-    
+
     match Title::search(&query).await {
         Ok(search) => Ok(Json(search)),
         Err(e) => {
@@ -238,4 +248,20 @@ pub async fn search_titles(query: Query<SearchQuery>) -> AlumRes<Json<Vec<Title>
             Err(e.into())
         }
     }
+}
+
+/// Creates a router for all metadata-related endpoints
+pub fn metadata_api() -> Router {
+    Router::new()
+        .route("/title_meta/{title_id}", get(title_meta))
+        .route(
+            "/title_meta/{title_id}/base_game",
+            get(title_meta_base_game),
+        )
+        .route("/title_meta/{title_id}/download_ids", get(get_download_ids))
+        .route("/grouped/{title_id}", get(list_grouped_by_titleid))
+        .route("/base_games", get(list_base_games))
+        .route("/base_games/search", get(search_base_game))
+        .route("/titledb/search", get(search_titledb))
+        .route("/search", get(search_titles))
 }

@@ -17,6 +17,42 @@ use crate::db::DB;
 pub static DOWNLOAD_QUEUE: std::sync::LazyLock<std::sync::Mutex<DownloadQueue>> =
     std::sync::LazyLock::new(|| std::sync::Mutex::new(DownloadQueue::new()));
 
+/// Status of a download
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DownloadStatus {
+    /// Download has been queued but not started yet
+    Queued,
+    /// Download is in progress
+    Downloading,
+    /// Download has been paused
+    Paused,
+    /// Download completed successfully
+    Completed,
+    /// Download was cancelled by user
+    Cancelled,
+    /// Download failed with an error
+    Failed(String),
+}
+
+impl Default for DownloadStatus {
+    fn default() -> Self {
+        Self::Queued
+    }
+}
+
+impl std::fmt::Display for DownloadStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Queued => write!(f, "Queued"),
+            Self::Downloading => write!(f, "Downloading"),
+            Self::Paused => write!(f, "Paused"),
+            Self::Completed => write!(f, "Completed"),
+            Self::Cancelled => write!(f, "Cancelled"),
+            Self::Failed(err) => write!(f, "Failed: {}", err),
+        }
+    }
+}
+
 /// Represents the progress of a download
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Progress {
@@ -24,10 +60,8 @@ pub struct Progress {
     pub total_size: Option<u64>,
     /// Number of bytes downloaded so far
     pub downloaded: u64,
-    /// Whether the download is complete
-    pub complete: bool,
-    /// Error message if download failed
-    pub error: Option<String>,
+    /// Status of the download
+    pub status: DownloadStatus,
     /// Final path of the downloaded file (once known)
     pub file_path: Option<PathBuf>,
 }
@@ -39,6 +73,27 @@ impl Progress {
     pub fn percentage(&self) -> Option<f32> {
         self.total_size
             .map(|total| (self.downloaded as f32 / total as f32) * 100.0)
+    }
+
+    /// Check if the download is complete (either successfully or with failure)
+    pub fn is_complete(&self) -> bool {
+        matches!(
+            self.status,
+            DownloadStatus::Completed | DownloadStatus::Failed(_) | DownloadStatus::Cancelled
+        )
+    }
+
+    /// Check if the download completed successfully
+    pub fn is_successful(&self) -> bool {
+        matches!(self.status, DownloadStatus::Completed)
+    }
+
+    /// Get the error message if the download failed
+    pub fn error_message(&self) -> Option<&str> {
+        match &self.status {
+            DownloadStatus::Failed(err) => Some(err),
+            _ => None,
+        }
     }
 }
 
@@ -90,10 +145,9 @@ impl DownloadHandle {
 
             let progress = self.progress();
 
-            if progress.complete {
-                return match progress.error {
-                    Some(error) => Err(error),
-                    None => {
+            if progress.is_complete() {
+                return match progress.status {
+                    DownloadStatus::Completed => {
                         // Return the file path from the progress if available
                         if let Some(path) = progress.file_path {
                             Ok(path)
@@ -108,6 +162,9 @@ impl DownloadHandle {
                             Ok(item.output_path)
                         }
                     }
+                    DownloadStatus::Failed(err) => Err(err),
+                    DownloadStatus::Cancelled => Err("Download was cancelled".to_string()),
+                    _ => Err("Download entered unexpected state".to_string()),
                 };
             }
         }
@@ -234,8 +291,7 @@ impl DownloadQueue {
                 Ok(path) => {
                     info!(path = ?path, "Download completed successfully");
                     Progress {
-                        complete: true,
-                        error: None,
+                        status: DownloadStatus::Completed,
                         file_path: Some(path.clone()),
                         ..progress_tx.borrow().clone()
                     }
@@ -243,8 +299,7 @@ impl DownloadQueue {
                 Err(e) => {
                     error!(error = %e, "Download failed");
                     Progress {
-                        error: Some(e.to_string()),
-                        complete: true,
+                        status: DownloadStatus::Failed(e.to_string()),
                         ..progress_tx.borrow().clone()
                     }
                 }
@@ -345,13 +400,14 @@ impl DownloadQueue {
         if let Some((_, handle)) = self.downloads.get(id) {
             info!("Cancelling download: id={}", id);
             handle.abort();
+
             // Update progress with cancelled status
             if let Some(progress_tx) = self.progress_watchers.get(id) {
                 let mut current = progress_tx.borrow().clone();
-                current.error = Some("Download cancelled".to_string());
-                current.complete = true;
+                current.status = DownloadStatus::Cancelled;
                 let _ = progress_tx.send(current);
             }
+
             self.downloads.remove(id);
             self.progress_watchers.remove(id);
             info!("Download cancelled and removed from queue: id={}", id);
@@ -586,8 +642,7 @@ impl Downloader {
             .send(Progress {
                 total_size,
                 downloaded: 0,
-                complete: false,
-                error: None,
+                status: DownloadStatus::Downloading,
                 file_path: Some(final_path.clone()),
             })
             .await;
@@ -606,8 +661,7 @@ impl Downloader {
                         .send(Progress {
                             total_size,
                             downloaded,
-                            complete: false,
-                            error: None,
+                            status: DownloadStatus::Downloading,
                             file_path: Some(final_path.clone()),
                         })
                         .await;
@@ -621,8 +675,7 @@ impl Downloader {
             .send(Progress {
                 total_size,
                 downloaded,
-                complete: true,
-                error: None,
+                status: DownloadStatus::Completed,
                 file_path: Some(final_path.clone()),
             })
             .await;
@@ -737,8 +790,7 @@ impl Downloader {
             .send(Progress {
                 total_size,
                 downloaded: 0,
-                complete: false,
-                error: None,
+                status: DownloadStatus::Downloading,
                 file_path: Some(final_path.clone()),
             })
             .await;
@@ -783,8 +835,7 @@ impl Downloader {
                         .send(Progress {
                             total_size,
                             downloaded,
-                            complete: false,
-                            error: None,
+                            status: DownloadStatus::Downloading,
                             file_path: Some(final_path.clone()),
                         })
                         .await;
@@ -807,8 +858,7 @@ impl Downloader {
             .send(Progress {
                 total_size,
                 downloaded,
-                complete: true,
-                error: None,
+                status: DownloadStatus::Completed,
                 file_path: Some(final_path.clone()),
             })
             .await;
