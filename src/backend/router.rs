@@ -6,7 +6,7 @@ use axum::{
 use tower_http::services::ServeDir;
 
 use crate::backend::api::api_router;
-use crate::backend::user::{basic_auth, basic_auth_if_public};
+use crate::backend::user::{auth_optional_viewer, auth_require_admin, auth_require_editor};
 
 /// Create the main backend router
 pub fn create_router() -> Router {
@@ -52,7 +52,8 @@ pub fn create_router() -> Router {
                 }
             }
         })
-        .layer(axum::middleware::from_fn(basic_auth_if_public))
+        // Use our new HRBAC middleware instead of the old basic_auth_if_public
+        .layer(axum::middleware::from_fn(super::user::auth_optional_viewer))
 }
 
 pub fn static_router() -> Router {
@@ -84,18 +85,22 @@ async fn read_html_fallback() -> Response {
 
 /// Create the admin router with authentication
 pub fn admin_router() -> Router {
-    Router::new()
-        .route("/rescan", axum::routing::post(super::admin::rescan_games))
-        .fallback(read_html_fallback)
-        // Generic importer endpoints
+    // Create a router for import functionality (Editor access)
+    let import_router = Router::new()
         .route(
-            "/import/{importer}/{id}",
+            "/{importer}/{id}",
             axum::routing::get(super::admin::generic_import_by_id),
         )
         .route(
-            "/import/auto/{id}",
+            "/auto/{id}",
             axum::routing::get(super::admin::auto_import_by_id),
-        )
-        // Add authentication layer
-        .layer(axum::middleware::from_fn(basic_auth))
+        );
+
+    // Main admin router with rescan (Admin access)
+    Router::new()
+        .route("/rescan", axum::routing::post(super::admin::rescan_games))
+        .nest("/import", import_router)
+        .fallback(read_html_fallback)
+        // Add authentication layer - Editor required for editing data
+        .layer(axum::middleware::from_fn(super::user::auth_require_editor))
 }

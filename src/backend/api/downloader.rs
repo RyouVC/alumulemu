@@ -194,10 +194,19 @@ pub async fn cancel_download_handler(
     }
 }
 
+pub fn dl_write_router() -> Router {
+    Router::new()
+        .route("/{id}/cancel", get(cancel_download_handler))
+        .layer(axum::middleware::from_fn(
+            crate::backend::user::auth_require_editor,
+        ))
+}
+
 pub fn downloader_api() -> Router {
     Router::new()
         .route("/", get(get_downloads_handler))
         .route("/stats", get(get_download_stats_handler))
         .route("/{id}", get(get_download_handler))
-        .route("/{id}/cancel", get(cancel_download_handler))
+        .merge(dl_write_router())
+    // .nest("/{id}/cancel", get(cancel_download_router))
 }
