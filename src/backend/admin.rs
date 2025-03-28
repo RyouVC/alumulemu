@@ -69,6 +69,37 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
     )))
 }
 
+// json body
+pub async fn generic_import_by_json(
+    Json(params): Json<(String, String)>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let (importer_name, id) = params;
+
+    tracing::info!(
+        "Starting generic import with importer '{}' for ID: {}",
+        importer_name,
+        id
+    );
+
+    todo!("Implement JSON import logic");
+
+    // Use our new generic import_by_id utility
+    match import_by_id(Some(importer_name), id).await {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            tracing::error!("Import error: {}", e);
+            Ok((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "message": e.to_string()
+                })),
+            )
+                .into_response())
+        }
+    }
+}
+
 // Generic importer that allows specifying which importer to use
 pub async fn generic_import_by_id(
     Path(params): Path<(String, String)>,

@@ -4,6 +4,18 @@ use scraper::{Html, Selector};
 
 const WEB_URL: &str = "https://not.ultranx.ru/en";
 
+// future JSON import API schema for UltraNX
+
+/// A JSON import request from the UltraNX archive
+///
+/// This is a placeholder for the future generic import API
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct UltraNxImportRequest {
+    #[serde(default)]
+    pub download_type: NotUltranxDownloadType,
+    pub title_id: String,
+}
+
 #[derive(Clone)]
 pub struct NotUltranxImporter {
     client: reqwest::Client,
@@ -69,7 +81,8 @@ impl NotUltranxImporter {
         Ok(None)
     }
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum NotUltranxDownloadType {
     Base,
     Update,
