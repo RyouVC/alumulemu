@@ -127,11 +127,24 @@ pub async fn download_file(
     }
 }
 
+/// Function to create the main API router
 pub fn api_router() -> Router {
-    Router::new()
-        .nest("/users", user_router())
+    // User router requires admin access
+    let user_routes = Router::new().nest("/users", user_router());
+
+    // Basic routes that all authenticated users can access (viewer level)
+    let api_routes = Router::new()
         .nest("/downloads", downloader::downloader_api())
         .merge(metadata::metadata_api()) // Use merge to maintain original paths
         .route("/tinfoil", get(tinfoil_index))
-        .route("/get_game/{download_id}", get(download_file))
+        .route("/get_game/{download_id}", get(download_file));
+
+    // Combine the routes
+    Router::new()
+        .merge(user_routes)
+        .merge(api_routes)
+        // Require viewer authentication for all API routes
+        .layer(axum::middleware::from_fn(
+            crate::backend::user::auth_optional_viewer,
+        ))
 }
