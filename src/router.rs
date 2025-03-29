@@ -489,6 +489,26 @@ async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse
     next.run(req).await
 }
 
+pub const TINFOIL_HEADERS: [&str; 3] = ["uid", "hauth", "uauth"];
+
+// Middleware to redirect Tinfoil clients to /api/tinfoil when accessing root
+async fn tinfoil_redirect(req: Request, next: Next) -> impl IntoResponse {
+    // Only apply this middleware to the root path
+    if req.uri().path() == "/" {
+        // Check if all Tinfoil headers are present
+        let is_tinfoil_client = TINFOIL_HEADERS
+            .iter()
+            .all(|&header| req.headers().contains_key(header));
+
+        if is_tinfoil_client {
+            tracing::debug!("Tinfoil client detected at root path, redirecting to /api/tinfoil");
+            return Redirect::permanent("/api/tinfoil").into_response();
+        }
+    }
+
+    next.run(req).await
+}
+
 // Middleware function to log requests with better error handling
 async fn log_request(req: Request, next: Next) -> impl IntoResponse {
     let path = req.uri().path().to_owned();
@@ -522,4 +542,5 @@ pub fn create_router() -> axum::Router {
     router
         .layer(middleware::from_fn(log_request))
         .layer(middleware::from_fn(normalize_trailing_slash))
+        .layer(middleware::from_fn(tinfoil_redirect))
 }
