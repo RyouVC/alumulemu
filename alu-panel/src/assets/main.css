@@ -2,37 +2,37 @@
 @import "tailwindcss";
 @plugin "daisyui";
 #app {
-    width: 100%;
-    /* max-width: 1600px; */
-    margin: 0 auto;
-    padding: 80px 20px 20px 20px;
-    font-weight: normal;
-    min-height: 90vh;
+  width: 100%;
+  /* max-width: 1600px; */
+  margin: 0 auto;
+  padding-top: 100px;
+  font-weight: normal;
+  min-height: 90vh;
 }
 
 a,
 .green {
-    text-decoration: none;
-    color: hsla(160, 100%, 37%, 1);
-    transition: 0.4s;
-    padding: 3px;
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+  padding: 3px;
 }
 
 @media (hover: hover) {
-    a:hover {
-        background-color: hsla(160, 100%, 37%, 0.2);
-    }
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
+  }
 }
 
 @media (min-width: 1024px) {
-    body {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-    #app {
-        padding: 0 20px;
-        display: block;
-    }
+  #app {
+    padding: 0;
+    display: block;
+  }
 }
