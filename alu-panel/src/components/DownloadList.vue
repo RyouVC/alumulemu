@@ -39,7 +39,6 @@
             </div>
           </div>
         </div>
-
         <div
           v-if="Object.keys(downloads).length"
           class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-5"
@@ -53,17 +52,19 @@
               <h3 class="card-title text-base-content">Download #{{ id }}</h3>
               <div class="space-y-2">
                 <p class="text-base-content/70 break-all">
-                  <span class="font-semibold">URL:</span> {{ download.url }}
+                  <span class="font-semibold">URL:</span> {{ download.item.url }}
                 </p>
                 <p class="text-base-content/70">
                   <span class="font-semibold">Status:</span>
                   <span
                     :class="{
                       'text-primary':
-                        download.progress.status === 'downloading',
-                      'text-warning': download.progress.status === 'paused',
-                      'text-success': download.progress.status === 'completed',
-                      'text-error': download.progress.status === 'failed',
+                        download.progress.status === 'Downloading',
+                      'text-warning': download.progress.status === 'Paused',
+                      'text-success': download.progress.status === 'Completed',
+                      'text-error': 
+                        download.progress.status === 'Cancelled' || 
+                        download.progress.status.startsWith('Failed'),
                     }"
                   >
                     {{ download.progress.status }}
@@ -72,10 +73,14 @@
                 <div class="w-full">
                   <div class="flex justify-between text-sm mb-1">
                     <span>Progress</span>
-                    <span
-                      >{{ download.progress.downloaded }} /
-                      {{ download.progress.total_size || "Unknown" }}</span
-                    >
+                    <span v-if="download.progress.total_size">
+                      {{ formatBytes(download.progress.downloaded) }} /
+                      {{ formatBytes(download.progress.total_size) }}
+                      ({{ calculatePercentage(download.progress) }}%)
+                    </span>
+                    <span v-else>
+                      {{ formatBytes(download.progress.downloaded) }} / Unknown
+                    </span>
                   </div>
                   <progress
                     class="progress progress-primary w-full"
@@ -85,13 +90,13 @@
                   <div class="card-actions justify-end pt-4">
                     <AluButton
                       v-if="
-                        download.progress.status !== 'completed' &&
-                        download.progress.status !== 'cancelled' &&
-                        download.progress.status !== 'failed'
+                        download.progress.status !== 'Completed' &&
+                        download.progress.status !== 'Cancelled' &&
+                        !download.progress.status.startsWith('Failed')
                       "
                       level="danger"
                       size="small"
-                      @click="cancelDownload(id)"
+                      @click="handleCancelDownload(id)"
                     >
                       Cancel Download
                     </AluButton>
@@ -101,7 +106,6 @@
             </div>
           </div>
         </div>
-
         <div v-else class="card bg-base-200 p-6 text-center">
           <p class="text-base-content/70">No downloads available</p>
         </div>
@@ -110,68 +114,79 @@
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from "vue";
+<script lang="ts">
+import { ref, onMounted, onUnmounted, defineComponent } from "vue";
 import AluButton from "./AluButton.vue";
+import { 
+  fetchDownloads, 
+  fetchStats, 
+  cancelDownload,
+  formatBytes,
+  calculatePercentage
+} from "../utils/download";
+import type { 
+  DownloadStats, 
+  DownloadItemWithProgress 
+} from "../utils/download";
 
-export default {
+export default defineComponent({
   name: "DownloadList",
   components: {
     AluButton,
   },
   setup() {
-    const downloads = ref({});
-    const stats = ref(null);
-
-    const fetchDownloads = async () => {
+    const downloads = ref<Record<string, DownloadItemWithProgress>>({});
+    const stats = ref<DownloadStats | null>(null);
+    
+    const refreshData = async () => {
       try {
-        const response = await fetch("/api/downloads/");
-        if (!response.ok) {
-          throw new Error("Failed to fetch downloads");
-        }
-        downloads.value = await response.json();
+        const [downloadsData, statsData] = await Promise.all([
+          fetchDownloads(),
+          fetchStats()
+        ]);
+        
+        downloads.value = downloadsData;
+        stats.value = statsData;
       } catch (error) {
-        console.error("Error fetching downloads:", error);
+        console.error("Error refreshing download data:", error);
       }
     };
-
-    const fetchStats = async () => {
+    
+    const handleCancelDownload = async (id: string) => {
       try {
-        const response = await fetch("/api/downloads/stats");
-        if (!response.ok) {
-          throw new Error("Failed to fetch stats");
-        }
-        stats.value = await response.json();
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-      }
-    };
-
-    const cancelDownload = async (id) => {
-      try {
-        const response = await fetch(`/api/downloads/${id}/cancel`, {
-          method: "GET",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to cancel download");
-        }
-
-        await Promise.all([fetchDownloads(), fetchStats()]);
+        await cancelDownload(id);
+        await refreshData();
       } catch (error) {
         console.error("Error cancelling download:", error);
       }
     };
-
+    
+    // Set up polling to refresh downloads automatically
+    let pollingInterval: number | undefined;
+    
     onMounted(() => {
-      fetchDownloads();
-      fetchStats();
+      refreshData();
+      
+      // Start polling for updates every 2 seconds
+      pollingInterval = window.setInterval(() => {
+        refreshData();
+      }, 2000);
     });
-
+    
+    // Clean up interval when component is unmounted
+    onUnmounted(() => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    });
+    
     return {
       downloads,
       stats,
-      cancelDownload,
+      handleCancelDownload,
+      formatBytes,
+      calculatePercentage
     };
   },
-};
+});
 </script>

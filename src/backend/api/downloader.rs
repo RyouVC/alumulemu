@@ -9,8 +9,15 @@ use http::StatusCode;
 use std::collections::HashMap;
 use ulid::Ulid;
 
+/// Combined DownloadQueueItem with its current Progress
+#[derive(Debug, serde::Serialize)]
+pub struct DownloadItemWithProgress {
+    pub item: DownloadQueueItem,
+    pub progress: Progress,
+}
+
 /// Get all active downloads and their current status
-pub async fn get_downloads() -> Result<HashMap<Ulid, DownloadQueueItem>> {
+pub async fn get_downloads() -> Result<HashMap<Ulid, DownloadItemWithProgress>> {
     // Create a scope to ensure the lock is dropped after getting the data
     let downloads_vec = {
         // Lock is acquired here, and any potential PoisonError is immediately converted
@@ -38,15 +45,15 @@ pub async fn get_downloads() -> Result<HashMap<Ulid, DownloadQueueItem>> {
     // Process the vector outside of the MutexGuard's scope
     let downloads = downloads_vec
         .into_iter()
-        .map(|(id, item, _)| (id, item))
-        .collect::<HashMap<Ulid, DownloadQueueItem>>();
+        .map(|(id, item, progress)| (id, DownloadItemWithProgress { item, progress }))
+        .collect::<HashMap<Ulid, DownloadItemWithProgress>>();
 
     Ok(downloads)
 }
 
 /// Get a specific download item by its ID
-pub async fn get_download(id: &Ulid) -> Result<Option<DownloadQueueItem>> {
-    let item = {
+pub async fn get_download(id: &Ulid) -> Result<Option<DownloadItemWithProgress>> {
+    let item_with_progress = {
         let queue = match DOWNLOAD_QUEUE.lock() {
             Ok(guard) => guard,
             Err(poison_err) => {
@@ -62,10 +69,13 @@ pub async fn get_download(id: &Ulid) -> Result<Option<DownloadQueueItem>> {
             .list_downloads()
             .into_iter()
             .find(|(item_id, _, _)| item_id == id)
-            .map(|(_, item, _)| item.clone())
+            .map(|(_, item, progress)| DownloadItemWithProgress {
+                item: item.clone(),
+                progress,
+            })
     };
 
-    Ok(item)
+    Ok(item_with_progress)
 }
 
 /// Get a summary of download status statistics

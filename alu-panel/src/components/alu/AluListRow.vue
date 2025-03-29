@@ -103,15 +103,14 @@
 import { computed, ref, onMounted, onUnmounted } from "vue";
 import { formatFileSize } from "@/util.js";
 import { importGameUltraNX, importGameURL } from "@/utils/import";
-import type { ImportStartResponse, ApiResponse } from "@/utils/import";
-import { TitleMetadata } from "@/utils/title";
+import type { TitleMetadata } from "@/utils/title";
 import AgeRating from "./AgeRating.vue";
 import AluButton from "../AluButton.vue";
 
 // Use the existing TitleMetadata type
-const props = defineProps < {
+const props = defineProps<{
     game: TitleMetadata;
-} > ();
+}>();
 
 interface Toast {
     id: number;
@@ -133,19 +132,19 @@ const disabledOptions = computed(() => ({
     url: false
 }));
 
-const emit = defineEmits < {
+const emit = defineEmits<{
     (e: 'get-metadata', titleId: string): void;
-(e: 'import', key: string, payload?: any): void;
-}> ();
+    (e: 'import', key: string, payload?: any): void;
+}>();
 
 const isUploadPopoverOpen = ref(false);
 const isUrlDialogOpen = ref(false);
-const selectedFile = ref < File | null > (null);
+const selectedFile = ref<File | null>(null);
 const downloadUrl = ref("");
-const dropdownMenu = ref < HTMLElement | null > (null);
+const dropdownMenu = ref<HTMLElement | null>(null);
 
 // Toast state - updated to support multiple toasts
-const toasts = ref < Toast[] > ([]);
+const toasts = ref<Toast[]>([]);
 let nextToastId = 0;
 
 // Loading state
