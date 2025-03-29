@@ -6,7 +6,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use color_eyre::Result;
 use http::StatusCode;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use ulid::Ulid;
 
 /// Combined DownloadQueueItem with its current Progress
@@ -17,7 +17,7 @@ pub struct DownloadItemWithProgress {
 }
 
 /// Get all active downloads and their current status
-pub async fn get_downloads() -> Result<HashMap<Ulid, DownloadItemWithProgress>> {
+pub async fn get_downloads() -> Result<BTreeMap<Ulid, DownloadItemWithProgress>> {
     // Create a scope to ensure the lock is dropped after getting the data
     let downloads_vec = {
         // Lock is acquired here, and any potential PoisonError is immediately converted
@@ -42,11 +42,11 @@ pub async fn get_downloads() -> Result<HashMap<Ulid, DownloadItemWithProgress>> 
         // Lock is automatically dropped here when queue goes out of scope
     };
 
-    // Process the vector outside of the MutexGuard's scope
+    // Process the vector outside of the MutexGuard's scope and use BTreeMap instead of HashMap
     let downloads = downloads_vec
         .into_iter()
         .map(|(id, item, progress)| (id, DownloadItemWithProgress { item, progress }))
-        .collect::<HashMap<Ulid, DownloadItemWithProgress>>();
+        .collect::<BTreeMap<Ulid, DownloadItemWithProgress>>();
 
     Ok(downloads)
 }

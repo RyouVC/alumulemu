@@ -2,7 +2,7 @@ use futures_util::StreamExt;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use reqwest::{Client, Response, Url};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
@@ -222,8 +222,8 @@ impl DownloadQueueItem {
 
 #[derive(Debug, Default)]
 pub struct DownloadQueue {
-    downloads: HashMap<Ulid, (DownloadQueueItem, tokio::task::JoinHandle<()>)>,
-    progress_watchers: HashMap<Ulid, watch::Sender<Progress>>,
+    downloads: BTreeMap<Ulid, (DownloadQueueItem, tokio::task::JoinHandle<()>)>,
+    progress_watchers: BTreeMap<Ulid, watch::Sender<Progress>>,
 }
 
 impl DownloadQueue {

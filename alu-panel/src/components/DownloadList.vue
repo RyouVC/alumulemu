@@ -39,17 +39,14 @@
             </div>
           </div>
         </div>
-        <div
-          v-if="Object.keys(downloads).length"
-          class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-5"
-        >
+        <div v-if="sortedDownloads.length" class="flex flex-col gap-4 pt-5">
           <div
-            v-for="(download, id) in downloads"
-            :key="id"
-            class="card bg-base-200 shadow-xl hover:bg-base-300 transition-colors duration-200"
+            v-for="download in sortedDownloads"
+            :key="download.id"
+            class="card bg-base-200 shadow-xl hover:bg-base-300 transition-colors duration-200 w-full"
           >
             <div class="card-body">
-              <h3 class="card-title text-base-content">Download #{{ id }}</h3>
+              <h3 class="card-title text-base-content">Download #{{ download.id }}</h3>
               <div class="space-y-2">
                 <p class="text-base-content/70 break-all">
                   <span class="font-semibold">URL:</span> {{ download.item.url }}
@@ -96,7 +93,7 @@
                       "
                       level="danger"
                       size="small"
-                      @click="handleCancelDownload(id)"
+                      @click="handleCancelDownload(download.id)"
                     >
                       Cancel Download
                     </AluButton>
@@ -115,7 +112,7 @@
 </template>
 
 <script lang="ts">
-import { ref, onMounted, onUnmounted, defineComponent } from "vue";
+import { ref, onMounted, onUnmounted, defineComponent, computed } from "vue";
 import AluButton from "./AluButton.vue";
 import { 
   fetchDownloads, 
@@ -137,6 +134,17 @@ export default defineComponent({
   setup() {
     const downloads = ref<Record<string, DownloadItemWithProgress>>({});
     const stats = ref<DownloadStats | null>(null);
+    
+    const sortedDownloads = computed(() => {
+      // Convert downloads object to array with id included
+      const downloadsArray = Object.entries(downloads.value).map(([id, download]) => ({
+        id,
+        ...download
+      }));
+      
+      // Sort by ID in descending order (newest first)
+      return downloadsArray.sort((a, b) => b.id.localeCompare(a.id));
+    });
     
     const refreshData = async () => {
       try {
@@ -182,6 +190,7 @@ export default defineComponent({
     
     return {
       downloads,
+      sortedDownloads,
       stats,
       handleCancelDownload,
       formatBytes,
