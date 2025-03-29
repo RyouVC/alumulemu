@@ -20,6 +20,8 @@ env:
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
+  # Custom cache keys
+  CACHE_KEY_PREFIX: alumulemu-docker-cache
 
 jobs:
   build:
@@ -77,14 +79,15 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      # Setup cache
+      # Setup Docker layer cache with custom key
       - name: Set up Docker cache
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/Cargo.lock', '**/pnpm-lock.yaml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-buildx-
+            ${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/Cargo.lock', '**/pnpm-lock.yaml') }}-
+            ${{ env.CACHE_KEY_PREFIX }}-
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
@@ -98,20 +101,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
             type=local,src=/tmp/.buildx-cache
-            type=gha,scope=${{ github.workflow }}
+            type=gha,scope=${{ env.CACHE_KEY_PREFIX }}
             type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
           cache-to: |
             type=local,dest=/tmp/.buildx-cache-new,mode=max
-            type=gha,mode=max,scope=${{ github.workflow }}
-          # Enable detailed buildx output for debugging cache issues
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=${{ github.event_name != 'pull_request' }},name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-          # Enable BuildKit debug logs if needed
-          provenance: false
+            type=gha,mode=max,scope=${{ env.CACHE_KEY_PREFIX }}
           platforms: linux/amd64
-          # Add build arguments if needed
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            CACHE_BUSTER=${{ github.run_id }}
 
       # Move cache
       - name: Move cache
