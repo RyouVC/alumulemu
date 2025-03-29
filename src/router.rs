@@ -33,7 +33,7 @@ pub type AlumRes<T> = Result<T, Error>;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
 pub struct RescanOptions {
-    #[serde(default)]
+    // #[serde(default)]
     pub rescan: bool,
 }
 
@@ -45,6 +45,7 @@ pub async fn update_metadata_from_filesystem(
     tracing::info!("Starting full metadata rescan of {}", path);
 
     let rescan = options.rescan;
+    tracing::debug!("Rescan option: {}", rescan);
 
     // Get all existing metadata
     let all_metadata = match NspMetadata::get_all().await {
@@ -472,7 +473,6 @@ async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse
     if path.len() > 1 && path.ends_with('/') {
         // Create new URI without the trailing slash
         let new_path = path.trim_end_matches('/');
-        let new_uri_parts = uri.clone().into_parts();
         let new_path_and_query = match uri.query() {
             Some(query) => format!("{}?{}", new_path, query),
             None => new_path.to_string(),

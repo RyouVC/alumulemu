@@ -33,6 +33,7 @@ pub async fn trigger_rescan(options: RescanOptions) -> color_eyre::Result<()> {
 
     // Clone the flag for use in the background task
     let rescan_flag = RESCAN_IN_PROGRESS.clone();
+    tracing::debug!(?options, "Rescan flag cloned for background task");
 
     // Spawn a background task to handle the rescan
     tokio::spawn(async move {
@@ -59,8 +60,11 @@ pub async fn trigger_rescan(options: RescanOptions) -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[tracing::instrument]
 pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<TinfoilResponse>> {
     // Trigger the rescan job
+    tracing::info!("Received request to rescan games directory");
+    tracing::info!("Rescan options: {:?}", options);
     let _ = trigger_rescan(options.0).await;
 
     // Return immediately with a message that the job has started

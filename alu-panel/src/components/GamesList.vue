@@ -23,9 +23,9 @@
                             </button>
                         </div>
 
-                        <!-- Already using AluButton component -->
-                        <AluButton id="games-rescan-button" @click="rescanGames" @click.shift="forceRescanGames"
-                            level="success" size="small" variant="soft" :loading="isScanning" :disabled="isScanning">
+                        <!-- Modified AluButton to handle shift click in the parent component -->
+                        <AluButton id="games-rescan-button" @click="handleRescanClick" level="success" size="small"
+                            variant="soft" :loading="isScanning" :disabled="isScanning">
                             {{ isScanning ? "Scanning..." : "Rescan Games" }}
                         </AluButton>
                     </div>
@@ -120,6 +120,15 @@ watch(searchQuery, () => {
         loadGames();
     }, 300);
 });
+
+// New handler to differentiate between regular and shift clicks
+const handleRescanClick = (event) => {
+    if (event.shiftKey) {
+        forceRescanGames();
+    } else {
+        rescanGames();
+    }
+};
 
 const rescanGames = async () => {
     isScanning.value = true;

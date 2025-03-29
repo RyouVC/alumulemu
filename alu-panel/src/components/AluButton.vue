@@ -1,5 +1,5 @@
 <template>
-    <button :class="buttonClasses" :disabled="disabled" @click="$emit('click', $event)" type="button">
+    <button :class="buttonClasses" :disabled="disabled" @click="handleClick" type="button">
         <slot>Button</slot>
     </button>
 </template>
@@ -31,6 +31,14 @@ export default {
         fullWidth: {
             type: Boolean,
             default: false
+        }
+    },
+    methods: {
+        handleClick(event) {
+            // Only emit 'click' event with the original event object
+            // Parent components can check event.shiftKey if needed
+            this.$emit('click', event);
+            console.log('Button clicked', event);
         }
     },
     computed: {
