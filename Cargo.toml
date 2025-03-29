@@ -11,6 +11,7 @@ description = "Nintendo Horizon repository manager"
 repository = "https://github.com/RyouVC/alumulemu"
 readme = "README.md"
 keywords = ["nintendo", "switch", "horizon", "repository", "manager"]
+rust-version = "1.85.1"
 
 [profile.release]
 lto = true
