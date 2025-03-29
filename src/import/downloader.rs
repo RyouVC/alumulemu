@@ -438,7 +438,8 @@ impl DownloadQueue {
     }
 
     // Cleans up completed downloads
-    pub async fn cleanup(&mut self) {
+    pub fn cleanup(&mut self) -> usize {
+        // First, clean up finished tasks with the previous behavior
         let completed_ids: Vec<Ulid> = self
             .downloads
             .iter()
@@ -446,10 +447,45 @@ impl DownloadQueue {
             .map(|(id, _)| *id)
             .collect();
 
-        for id in completed_ids {
+        // Now also include downloads that are completed, failed, or cancelled
+        // based on their status, not just the finished state of the handle
+        let status_complete_ids: Vec<Ulid> = self
+            .downloads
+            .iter()
+            .filter_map(|(id, (_, _))| {
+                if let Some(progress_tx) = self.progress_watchers.get(id) {
+                    let progress = progress_tx.borrow();
+                    if matches!(
+                        progress.status,
+                        DownloadStatus::Completed
+                            | DownloadStatus::Failed(_)
+                            | DownloadStatus::Cancelled
+                    ) {
+                        // Don't add duplicates from the previous filter
+                        if !completed_ids.contains(id) {
+                            return Some(*id);
+                        }
+                    }
+                }
+                None
+            })
+            .collect();
+
+        // Combine both lists
+        let all_ids_to_remove: Vec<Ulid> = completed_ids
+            .into_iter()
+            .chain(status_complete_ids.into_iter())
+            .collect();
+
+        let count = all_ids_to_remove.len();
+
+        for id in all_ids_to_remove {
+            info!("Removing download from queue: id={}", id);
             self.downloads.remove(&id);
             self.progress_watchers.remove(&id);
         }
+
+        count
     }
 
     // Sync all active downloads with the database

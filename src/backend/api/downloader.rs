@@ -6,6 +6,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use color_eyre::Result;
 use http::StatusCode;
+use serde_json::json;
 use std::collections::BTreeMap;
 use ulid::Ulid;
 
@@ -138,6 +139,41 @@ pub async fn cancel_download(id: &Ulid) -> Result<bool> {
     Ok(result)
 }
 
+/// Clean up completed and aborted downloads from the queue
+pub async fn cleanup_downloads() -> Result<usize> {
+    // Acquire the lock, perform cleanup, get the count, then drop the lock
+    let result = {
+        let mut queue = match DOWNLOAD_QUEUE.lock() {
+            Ok(guard) => guard,
+            Err(poison_err) => {
+                return Err(color_eyre::eyre::eyre!(
+                    "Failed to lock download queue: {}",
+                    poison_err
+                ));
+            }
+        };
+        queue.cleanup()
+    };
+
+    // Return the count directly
+    Ok(result)
+}
+
+/// Handler for cleaning up finished downloads
+#[axum::debug_handler]
+pub async fn cleanup_downloads_handler() -> Result<impl IntoResponse, StatusCode> {
+    match cleanup_downloads().await {
+        Ok(count) => {
+            tracing::info!("Cleaned up download queue, removed {} items", count);
+            Ok(Json(json!({ "count": count })).into_response())
+        }
+        Err(e) => {
+            tracing::error!("Failed to clean up downloads: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 /// Statistics about download queue
 #[derive(Debug, Default, serde::Serialize)]
 pub struct DownloadStats {
@@ -207,6 +243,7 @@ pub async fn cancel_download_handler(
 pub fn dl_write_router() -> Router {
     Router::new()
         .route("/{id}/cancel", get(cancel_download_handler))
+        .route("/cleanup", get(cleanup_downloads_handler))
         .layer(axum::middleware::from_fn(
             crate::backend::user::auth_require_editor,
         ))

@@ -88,3 +88,13 @@ export const cancelDownload = async (id: string): Promise<void> => {
     throw new Error("Failed to cancel download");
   }
 };
+
+export const cleanupDownloads = async (): Promise<{ count: number }> => {
+  const response = await fetch(`/api/downloads/cleanup`, {
+    method: "GET",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to clean up downloads");
+  }
+  return await response.json();
+};

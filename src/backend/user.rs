@@ -298,7 +298,7 @@ pub async fn basic_auth_if_public(req: Request<Body>, next: Next) -> Result<Resp
     let config = crate::config::config();
     let is_public = config.backend_config.public;
 
-    if (!is_public) {
+    if !is_public {
         basic_auth(req, next).await
     } else {
         Ok(next.run(req).await)

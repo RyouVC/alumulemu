@@ -5,9 +5,19 @@
     <div class="backdrop-blur-sm w-full flex flex-col items-center">
       <div class="container px-4 pt-8 mx-auto mt-16 md:px-8 lg:px-16">
         <div v-if="stats" class="mb-8">
-          <h2 class="text-2xl font-bold mb-4 text-base-content p-5 pt-9 pl-0">
-            Download Stats
-          </h2>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-base-content p-5 pt-9 pl-0">
+              Download Stats
+            </h2>
+            <AluButton 
+              v-if="stats.completed > 0 || stats.failed > 0 || stats.cancelled > 0" 
+              level="secondary" 
+              @click="handleCleanup"
+              :disabled="isCleaning"
+            >
+              Clean Up Downloads
+            </AluButton>
+          </div>
           <div class="stats shadow bg-base-200 w-full">
             <div class="stat">
               <div class="stat-title">Total</div>
@@ -118,6 +128,7 @@ import {
   fetchDownloads, 
   fetchStats, 
   cancelDownload,
+  cleanupDownloads,
   formatBytes,
   calculatePercentage
 } from "../utils/download";
@@ -134,6 +145,7 @@ export default defineComponent({
   setup() {
     const downloads = ref<Record<string, DownloadItemWithProgress>>({});
     const stats = ref<DownloadStats | null>(null);
+    const isCleaning = ref<boolean>(false);
     
     const sortedDownloads = computed(() => {
       // Convert downloads object to array with id included
@@ -169,6 +181,21 @@ export default defineComponent({
       }
     };
     
+    const handleCleanup = async () => {
+      if (isCleaning.value) return;
+      
+      try {
+        isCleaning.value = true;
+        const result = await cleanupDownloads();
+        console.log(`Cleaned up downloads, remaining: ${result.count}`);
+        await refreshData();
+      } catch (error) {
+        console.error("Error cleaning up downloads:", error);
+      } finally {
+        isCleaning.value = false;
+      }
+    };
+    
     // Set up polling to refresh downloads automatically
     let pollingInterval: number | undefined;
     
@@ -192,7 +219,9 @@ export default defineComponent({
       downloads,
       sortedDownloads,
       stats,
+      isCleaning,
       handleCancelDownload,
+      handleCleanup,
       formatBytes,
       calculatePercentage
     };
