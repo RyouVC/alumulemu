@@ -6,7 +6,6 @@ use axum::{
 use tower_http::services::ServeDir;
 
 use crate::backend::api::api_router;
-use crate::backend::user::{auth_optional_viewer, auth_require_admin, auth_require_editor};
 
 /// Create the main backend router
 pub fn create_router() -> Router {
@@ -87,13 +86,14 @@ async fn read_html_fallback() -> Response {
 pub fn admin_router() -> Router {
     // Create a router for import functionality (Editor access)
     let import_router = Router::new()
+        // New JSON-based importers
         .route(
-            "/{importer}/{id}",
-            axum::routing::get(super::admin::generic_import_by_id),
+            "/{importer_id}",
+            axum::routing::post(super::admin::process_import),
         )
         .route(
-            "/auto/{id}",
-            axum::routing::get(super::admin::auto_import_by_id),
+            "/list",
+            axum::routing::get(super::admin::list_importers),
         );
 
     // Main admin router with rescan (Admin access)

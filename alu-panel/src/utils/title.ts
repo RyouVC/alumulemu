@@ -48,7 +48,9 @@ export interface TitleMetadata {
   numberOfPlayers: number;
 
   /** Age rating value */
-  rating: number;
+  rating: number | null;
+
+  ageRating: string | null;
 
   /** Content descriptors for rating */
   ratingContent: string[];

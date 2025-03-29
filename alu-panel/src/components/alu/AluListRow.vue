@@ -90,28 +90,35 @@
             </div>
         </div>
 
-        <!-- Toast container for notifications -->
-        <div v-if="showToast" class="toast toast-end z-[9999] p-4 mb-4 mr-4">
-            <div class="alert" :class="toastType">
-                <span>{{ toastMessage }}</span>
+        <!-- Toast container for stacked notifications -->
+        <div class="toast toast-end z-[9999] p-4 mb-4 mr-4">
+            <div v-for="(toast, index) in toasts" :key="index" class="alert my-2" :class="toast.type">
+                <span>{{ toast.message }}</span>
             </div>
         </div>
     </Teleport>
 </template>
 
-<script setup>
+<script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted } from "vue";
 import { formatFileSize } from "@/util.js";
-import { importGameUltraNX, importGameURL } from "@/utils/import.ts";
+import { importGameUltraNX, importGameURL } from "@/utils/import";
+import type { ImportStartResponse, ApiResponse } from "@/utils/import";
+import { TitleMetadata } from "@/utils/title";
 import AgeRating from "./AgeRating.vue";
 import AluButton from "../AluButton.vue";
 
-const props = defineProps({
-    game: {
-        type: Object,
-        required: true,
-    },
-});
+// Use the existing TitleMetadata type
+const props = defineProps < {
+    game: TitleMetadata;
+} > ();
+
+interface Toast {
+    id: number;
+    message: string;
+    type: string;
+    timeoutId?: number;
+}
 
 const importers = {
     ultranx: "UltraNX",
@@ -121,27 +128,31 @@ const importers = {
 
 // Add a computed property to identify disabled options
 const disabledOptions = computed(() => ({
-    upload: true // Mark upload as disabled
+    ultranx: false,
+    upload: true, // Mark upload as disabled
+    url: false
 }));
 
-const emit = defineEmits(["get-metadata", "import"]);
+const emit = defineEmits < {
+    (e: 'get-metadata', titleId: string): void;
+(e: 'import', key: string, payload?: any): void;
+}> ();
+
 const isUploadPopoverOpen = ref(false);
 const isUrlDialogOpen = ref(false);
-const selectedFile = ref(null);
+const selectedFile = ref < File | null > (null);
 const downloadUrl = ref("");
-const dropdownMenu = ref(null);
+const dropdownMenu = ref < HTMLElement | null > (null);
 
-// Toast state
-const showToast = ref(false);
-const toastMessage = ref("");
-const toastType = ref("alert-info");
-const toastTimeout = ref(null);
+// Toast state - updated to support multiple toasts
+const toasts = ref < Toast[] > ([]);
+let nextToastId = 0;
 
 // Loading state
 const isImporting = ref(false);
 
 const formattedSize = computed(() => {
-    return formatFileSize(props.game.size);
+    return formatFileSize(props.game.size || 0);
 });
 
 const isValidUrl = computed(() => {
@@ -154,7 +165,7 @@ const isValidUrl = computed(() => {
     }
 });
 
-const emitGetMetadata = (event) => {
+const emitGetMetadata = (event: MouseEvent) => {
     // Don't trigger navigation if we're clicking inside any modal
     if (isUploadPopoverOpen.value || isUrlDialogOpen.value) {
         event.stopPropagation();
@@ -164,78 +175,50 @@ const emitGetMetadata = (event) => {
 };
 
 /**
- * Shows a toast notification
- * @param {string} message - The message to display
- * @param {string} type - The type of toast (alert-success, alert-error, alert-info, alert-warning)
- * @param {number} duration - Duration in milliseconds to show the toast
+ * Shows a toast notification that will be added to the stack
+ * @param message - The message to display
+ * @param type - The type of toast (alert-success, alert-error, alert-info, alert-warning)
+ * @param duration - Duration in milliseconds to show the toast
  */
-const showToastNotification = (message, type = "alert-info", duration = 3000) => {
-    // Clear any existing timeout
-    if (toastTimeout.value) {
-        clearTimeout(toastTimeout.value);
-    }
+const showToastNotification = (message: string, type = "alert-info", duration = 3000) => {
+    // Create a unique ID for this toast
+    const id = nextToastId++;
 
-    // Set toast properties
-    toastMessage.value = message;
-    toastType.value = type;
-    showToast.value = true;
+    // Add the toast to our list
+    const toast: Toast = {
+        id,
+        message,
+        type,
+    };
+
+    toasts.value.push(toast);
 
     // Auto-hide the toast after duration
-    toastTimeout.value = setTimeout(() => {
-        showToast.value = false;
+    const timeoutId = window.setTimeout(() => {
+        // Remove this toast when the timeout expires
+        toasts.value = toasts.value.filter(t => t.id !== id);
     }, duration);
+
+    // Store the timeout ID so we can clear it if needed
+    toast.timeoutId = timeoutId;
 };
 
 /**
  * Handles importing a game from UltraNX
- * @param {Object} gameMetadata - The game metadata object
+ * @param gameMetadata - The game metadata object
  */
-const handleUltraNXImport = async (gameMetadata) => {
+const handleUltraNXImport = async (gameMetadata: TitleMetadata) => {
     if (isImporting.value) return; // Don't allow multiple simultaneous imports
-
     isImporting.value = true;
-
     try {
+        // No need for conversion since we're already using TitleMetadata
         const result = await importGameUltraNX(gameMetadata);
-
-        // Check if it's an error or success based on the status field
-        if (result && result.status === "error") {
-            // Show the actual error message from the API response
-            showToastNotification(result.message || "Import failed", "alert-error");
-        } else {
-            // It's a success, show success toast with message
-            showToastNotification(
-                result && result.message ? result.message : "Import successful",
-                "alert-success"
-            );
-        }
-
+        showToastNotification("Import started successfully", "alert-success");
         emitImport("ultranx", result);
     } catch (error) {
         console.error("Error importing from UltraNX:", error);
-
-        // Extract error message from response if available
-        let errorMessage = "Error importing from UltraNX";
-
-        if (error.response && error.response.data) {
-            // Try to get the detailed error message from the response data
-            const responseData = error.response.data;
-            if (typeof responseData === 'string') {
-                // If response is a string, use it directly
-                errorMessage = responseData;
-            } else if (responseData.message) {
-                // If response has a message property
-                errorMessage = responseData.message;
-            } else if (responseData.error) {
-                // Some APIs use an error property
-                errorMessage = responseData.error;
-            }
-        } else if (error.message) {
-            // Use the error object's message if available
-            errorMessage = error.message;
-        }
-
-        showToastNotification(errorMessage, "alert-error");
+        const errorMsg = error instanceof Error ? error.message : "Error importing from UltraNX";
+        showToastNotification(errorMsg, "alert-error");
     } finally {
         isImporting.value = false;
     }
@@ -243,43 +226,27 @@ const handleUltraNXImport = async (gameMetadata) => {
 
 /**
  * Handles importing a game from a URL
- * @param {string} url - The URL to import from
+ * @param url - The URL to import from
  */
-const handleUrlImport = async (url) => {
+const handleUrlImport = async (url: string) => {
     if (isImporting.value) return; // Don't allow multiple simultaneous imports
     isImporting.value = true;
-
     try {
         const result = await importGameURL(url);
-        // Check if it's an error or success based on the status field
-        if (result && result.status === "error") {
-            // Show the actual error message from the API response
-            showToastNotification(result.message || "Import failed", "alert-error");
-        } else {
-            // It's a success, show success toast with message
-            showToastNotification(
-                result && result.message ? result.message : "Import successful",
-                "alert-success"
-            );
-        }
+        showToastNotification("Import started successfully", "alert-success");
         emitImport("url", result);
     } catch (error) {
         console.error("Error importing from URL:", error);
-        // Extract error message from response if available
-        let errorMessage = "Error importing from URL";
-        if (error.message) {
-            // Use the error object's message if available
-            errorMessage = error.message;
-        }
-        showToastNotification(errorMessage, "alert-error");
+        const errorMsg = error instanceof Error ? error.message : "Error importing from URL";
+        showToastNotification(errorMsg, "alert-error");
     } finally {
         isImporting.value = false;
     }
 };
 
-const handleImportOption = (key) => {
+const handleImportOption = (key: string) => {
     // Don't allow actions while importing or if the option is disabled
-    if (isImporting.value || disabledOptions.value[key]) return;
+    if (isImporting.value || disabledOptions.value[key as keyof typeof disabledOptions.value]) return;
 
     // Close dropdown when opening any dialog
     if (dropdownMenu.value) {
@@ -295,7 +262,7 @@ const handleImportOption = (key) => {
     }
 };
 
-const emitImport = (key, payload = null) => {
+const emitImport = (key: string, payload: any = null) => {
     emit("import", key, payload);
 };
 
@@ -309,8 +276,9 @@ const closeUrlDialog = () => {
     downloadUrl.value = "";
 };
 
-const handleFileSelected = (event) => {
-    selectedFile.value = event.target.files[0] || null;
+const handleFileSelected = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    selectedFile.value = input.files ? input.files[0] : null;
 };
 
 const uploadSelectedFile = () => {
@@ -328,13 +296,14 @@ const submitUrlDownload = () => {
 };
 
 // Close popover when clicking outside
-const handleClickOutside = (event) => {
-    if (
-        isUploadPopoverOpen.value &&
-        uploadPopover.value &&
-        !uploadPopover.value.contains(event.target)
-    ) {
-        closeUploadPopover();
+const handleClickOutside = (event: MouseEvent) => {
+    // We're not using uploadPopover ref, so simplify this check
+    if (isUploadPopoverOpen.value) {
+        // Check if the clicked element is not inside the modal
+        const modal = document.querySelector('.p-6.rounded-lg.shadow-xl');
+        if (modal && !modal.contains(event.target as Node)) {
+            closeUploadPopover();
+        }
     }
 };
 
@@ -344,10 +313,12 @@ onMounted(() => {
 
 onUnmounted(() => {
     document.removeEventListener("click", handleClickOutside);
-    // Clear any active toast timeout
-    if (toastTimeout.value) {
-        clearTimeout(toastTimeout.value);
-    }
+    // Clear all active toast timeouts
+    toasts.value.forEach(toast => {
+        if (toast.timeoutId) {
+            clearTimeout(toast.timeoutId);
+        }
+    });
 });
 </script>
 

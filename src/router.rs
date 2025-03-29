@@ -33,7 +33,7 @@ pub type AlumRes<T> = Result<T, Error>;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
 pub struct RescanOptions {
-    // #[serde(default)]
+    #[serde(default)]
     pub rescan: bool,
 }
 

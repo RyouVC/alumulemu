@@ -1,14 +1,9 @@
-use super::{IdImporter, Importer, Result};
-use crate::import::registry::{IdImportProvider, ImporterProvider};
+use super::{ImportError, ImportSource, Importer, Result};
 use scraper::{Html, Selector};
 
 const WEB_URL: &str = "https://not.ultranx.ru/en";
 
-// future JSON import API schema for UltraNX
-
 /// A JSON import request from the UltraNX archive
-///
-/// This is a placeholder for the future generic import API
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct UltraNxImportRequest {
     #[serde(default)]
@@ -20,6 +15,7 @@ pub struct UltraNxImportRequest {
 pub struct NotUltranxImporter {
     client: reqwest::Client,
 }
+
 #[derive(Debug)]
 pub struct NotUltranxTitle {
     pub title_id: String,
@@ -81,6 +77,7 @@ impl NotUltranxImporter {
         Ok(None)
     }
 }
+
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum NotUltranxDownloadType {
@@ -90,83 +87,61 @@ pub enum NotUltranxDownloadType {
     #[default]
     FullPkg,
 }
-#[derive(Debug, Default)]
-pub struct UltraNxImportOptions {
-    pub download_type: NotUltranxDownloadType,
-}
 
 impl Importer for NotUltranxImporter {
-    type ImportOptions = UltraNxImportOptions;
-}
+    type ImportRequest = UltraNxImportRequest;
 
-impl IdImporter for NotUltranxImporter {
-    type ImportData = NotUltranxTitle;
+    async fn import(&self, request: Self::ImportRequest) -> Result<ImportSource> {
+        let title = self.get_title(&request.title_id).await?;
 
-    async fn import_by_id(
-        &self,
-        id: &str,
-        options: Option<Self::ImportOptions>,
-    ) -> super::Result<super::ImportSource> {
-        let options = options.unwrap_or_default();
-        let title = self.get_title(id).await?;
         if title.is_none() {
-            return Err(super::ImportError::GameNotFound);
+            return Err(ImportError::GameNotFound);
         }
-        match options.download_type {
-            NotUltranxDownloadType::Base => {
-                let title = self.get_title(id).await?;
-                if let Some(title) = title {
-                    return Ok(super::ImportSource::RemoteHttp(title.base_url));
-                }
-            }
+
+        let title = title.unwrap();
+
+        // Determine the URL based on download type
+        match request.download_type {
+            NotUltranxDownloadType::Base => Ok(ImportSource::RemoteHttp(title.base_url)),
             NotUltranxDownloadType::Update => {
-                if let Some(title) = title {
-                    return Ok(super::ImportSource::RemoteHttp(
-                        title.update_url.unwrap_or_default(),
-                    ));
+                if let Some(url) = title.update_url {
+                    Ok(ImportSource::RemoteHttp(url))
+                } else {
+                    Err(ImportError::Other(color_eyre::eyre::eyre!(
+                        "Update not available for this title"
+                    )))
                 }
             }
             NotUltranxDownloadType::Dlcs => {
-                if let Some(title) = title {
-                    return Ok(super::ImportSource::RemoteHttpArchive(
-                        title.dlcs_url.unwrap_or_default(),
-                    ));
+                if let Some(url) = title.dlcs_url {
+                    Ok(ImportSource::RemoteHttpArchive(url))
+                } else {
+                    Err(ImportError::Other(color_eyre::eyre::eyre!(
+                        "DLCs not available for this title"
+                    )))
                 }
             }
             NotUltranxDownloadType::FullPkg => {
-                if let Some(title) = title {
-                    return Ok(super::ImportSource::RemoteHttpArchive(
-                        title.full_pkg_url.unwrap_or_default(),
-                    ));
+                if let Some(url) = title.full_pkg_url {
+                    Ok(ImportSource::RemoteHttpArchive(url))
+                } else {
+                    Err(ImportError::Other(color_eyre::eyre::eyre!(
+                        "Full package not available for this title"
+                    )))
                 }
             }
         }
-
-        // Ok(super::ImportSource::RemoteHttp(format!("{}/game/{}", WEB_URL, id)))
-        // Download the title
-        Err(super::ImportError::Other(color_eyre::eyre::eyre!(
-            "Invalid download type"
-        )))
     }
 
-    async fn get_import_data(&self, id: &str) -> super::Result<Option<Self::ImportData>> {
-        self.get_title(id).await
+    fn name(&self) -> &'static str {
+        "not_ultranx_importer"
     }
-}
 
-// Implement the IdImportProvider trait to make this work with our generic import system
-impl IdImportProvider for NotUltranxImporter {
-    fn import_by_id_string<'a>(
-        &'a self,
-        id: &'a str,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = super::Result<super::ImportSource>> + Send + 'a>,
-    > {
-        // Use a boxed future to implement the async trait method
-        Box::pin(async move {
-            // Default to the full package download type
-            self.import_by_id(id, Some(UltraNxImportOptions::default()))
-                .await
-        })
+    fn display_name(&self) -> &'static str {
+        "UltraNX Importer"
+    }
+
+    fn description(&self) -> &'static str {
+        "Imports games from the not.ultranx.ru game archive"
     }
 }

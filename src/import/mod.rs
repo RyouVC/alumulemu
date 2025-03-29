@@ -5,19 +5,13 @@
 //!
 //! - Manually uploading a package file
 //! - Downloading a package from a remote source
-//! - Merging to a repo with an existing repository of packages
+//! - Merging with an existing repository of packages
 //!
 //! # Adding a New Importer
 //!
-//! This section provides a step-by-step guide on how to implement and register a new importer.
+//! This section provides a step-by-step guide on how to implement a new importer.
 //!
-//! ## 1. Choose an Importer Type
-//!
-//! Decide whether your importer will be:
-//!   - An `IdImporter` (imports resources using an identifier like a title ID or URL)
-//!   - A `FileImporter` (imports from files or directories)
-//!
-//! ## 2. Create a New Module
+//! ## 1. Create a New Module
 //!
 //! Create a new file for your importer (e.g., `my_importer.rs`) in the `import` directory
 //! and add it to the module declarations at the top of `mod.rs`.
@@ -27,11 +21,11 @@
 //! pub mod my_importer;
 //! ```
 //!
-//! ## 3. Define Your Importer Struct
+//! ## 2. Define Your Importer Struct and Request Type
 //!
 //! ```rust
-//! use crate::import::{Importer, IdImporter, Result, ImportSource, ImportError};
-//! use crate::import::registry::{ImporterProvider, IdImportProvider};
+//! use crate::import::{Importer, Result, ImportSource, ImportError};
+//! use serde::Deserialize;
 //!
 //! #[derive(Clone, Debug)]
 //! pub struct MyImporter {
@@ -39,19 +33,12 @@
 //!     client: reqwest::Client,
 //! }
 //!
-//! // Import data type for your importer
-//! #[derive(Debug)]
-//! pub struct MyImportData {
+//! // Import request type for your importer - must implement Deserialize
+//! #[derive(Debug, Deserialize)]
+//! pub struct MyImportRequest {
 //!     pub id: String,
-//!     pub name: String,
-//!     // Other metadata fields
-//! }
-//!
-//! // Import options for your importer
-//! #[derive(Debug, Default)]
-//! pub struct MyImportOptions {
-//!     pub some_option: bool,
-//!     // Other options
+//!     pub some_option: Option<bool>,
+//!     // Other request fields
 //! }
 //!
 //! impl MyImporter {
@@ -65,30 +52,16 @@
 //! }
 //! ```
 //!
-//! ## 4. Implement Required Traits
-//!
-//! ### Basic Importer Trait
+//! ## 3. Implement the Importer Trait
 //!
 //! ```rust
 //! impl Importer for MyImporter {
-//!     type ImportOptions = MyImportOptions;
-//! }
-//! ```
+//!     type ImportRequest = MyImportRequest;
 //!
-//! ### ID Importer Trait (if applicable)
-//!
-//! ```rust
-//! impl IdImporter for MyImporter {
-//!     type ImportData = MyImportData;
-//!
-//!     async fn import_by_id(
-//!         &self,
-//!         id: &str,
-//!         options: Option<Self::ImportOptions>,
-//!     ) -> Result<ImportSource> {
+//!     async fn import(&self, request: Self::ImportRequest) -> Result<ImportSource> {
 //!         // Implement your import logic here
 //!         // Example:
-//!         let url = format!("https://example.com/api/game/{}", id);
+//!         let url = format!("https://example.com/api/game/{}", request.id);
 //!         let response = self.client.get(&url).send().await?;
 //!         
 //!         if response.status() == 404 {
@@ -100,81 +73,27 @@
 //!         Ok(ImportSource::RemoteHttpAuto(download_url.to_string()))
 //!     }
 //!
-//!     async fn get_import_data(&self, id: &str) -> Result<Option<Self::ImportData>> {
-//!         // Implement metadata retrieval logic
-//!         Ok(Some(MyImportData {
-//!             id: id.to_string(),
-//!             name: "Example Game".to_string(),
-//!         }))
+//!     fn name(&self) -> &'static str {
+//!         "my_importer"
+//!     }
+//!
+//!     fn display_name(&self) -> &'static str {
+//!         "My Custom Importer"
+//!     }
+//!
+//!     fn description(&self) -> &'static str {
+//!         "Imports games from my custom source"
 //!     }
 //! }
 //! ```
 //!
-//! ### IdImportProvider Trait (for generic importing)
+//! ## 4. Register Your Importer (if necessary)
 //!
-//! ```rust
-//! impl IdImportProvider for MyImporter {
-//!     fn import_by_id_string<'a>(
-//!         &'a self,
-//!         id: &'a str,
-//!     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ImportSource>> + Send + 'a>> {
-//!         Box::pin(async move {
-//!             // Use the existing import_by_id method with default options
-//!             self.import_by_id(id, None).await
-//!         })
-//!     }
-//! }
-//! ```
+//! If your importer needs to be available through a registry or API endpoint,
+//! you'll need to register it. This depends on how your application is structured,
+//! but typically involves adding your importer to a collection or registry.
 //!
-//! ## 5. Register Your Importer
-//!
-//! Update the `init_registry` function in `registry.rs` to include your new importer:
-//!
-//! ```rust
-//! // In registry.rs
-//! pub fn init_registry() {
-//!     info!("Initializing importer registry");
-//!     
-//!     // Register existing importers
-//!     register_with_id("ultranx", NotUltranxImporter::new());
-//!     register_with_id("url", UrlImporter::new());
-//!     
-//!     // Register your new importer
-//!     register_with_id("myimporter", my_importer::MyImporter::new());
-//!     
-//!     info!("Importer registry initialized");
-//! }
-//! ```
-//!
-//! ## 6. Update IdImportProviderObj in registry.rs
-//!
-//! Add your importer to the `try_from_provider` method in the `IdImportProviderObj` struct:
-//!
-//! ```rust
-//! pub fn try_from_provider(provider: Arc<dyn ImporterProvider>) -> Option<Self> {
-//!     // Check for known ID importers
-//!     if provider.name().contains("NotUltranxImporter") {
-//!         // ... existing code
-//!     } else if provider.name().contains("UrlImporter") {
-//!         // ... existing code
-//!     } else if provider.name().contains("MyImporter") {
-//!         provider.as_any().downcast_ref::<crate::import::my_importer::MyImporter>()
-//!             .map(|_| {
-//!                 // Create a new instance
-//!                 let provider_clone = provider.clone_box();
-//!                 let concrete = provider_clone.as_any()
-//!                     .downcast_ref::<crate::import::my_importer::MyImporter>()
-//!                     .unwrap();
-//!                 IdImportProviderObj::new(Arc::new(concrete.clone()))
-//!             })
-//!     } else {
-//!         // Not a known ID importer
-//!         None
-//!     }
-//! }
-//! ```
-//!
-//! ## 7. Testing Your Importer
+//! ## 5. Testing Your Importer
 //!
 //! Add tests for your importer to ensure it works correctly:
 //!
@@ -187,20 +106,22 @@
 //!     async fn test_my_importer() {
 //!         let importer = MyImporter::new();
 //!         
-//!         // Test ID format detection
-//!         let result = importer.import_by_id("test-id", None).await;
-//!         assert!(result.is_ok());
+//!         // Create a test request
+//!         let request = MyImportRequest {
+//!             id: "test-id".to_string(),
+//!             some_option: Some(true),
+//!         };
 //!         
-//!         // Test metadata retrieval
-//!         let data = importer.get_import_data("test-id").await.unwrap();
-//!         assert!(data.is_some());
+//!         // Test import functionality
+//!         let result = importer.import(request).await;
+//!         assert!(result.is_ok());
 //!     }
 //! }
 //! ```
 //!
-//! With these steps, you can add new importers that seamlessly integrate with the existing
-//! import system. The generic approach means you only need to implement the appropriate traits
-//! and register your importer - the rest of the system will handle it automatically.
+//! That's it! Your importer is now ready to use and can be integrated with the rest of the system.
+//! The `ImportSource` enum provides flexible ways to handle different import sources, and the
+//! importer framework handles the actual file processing and importing.
 //!
 
 use async_zip::tokio::read::seek::ZipFileReader;
@@ -588,33 +509,19 @@ pub async fn extract_zip_to_directory(zip_path: &Path, destination: &Path) -> Re
 }
 
 /// Base trait for importers
-pub trait Importer {
-    /// The type of options/configuration for this importer
-    type ImportOptions;
-}
+pub trait Importer: Send + Sync + Clone + 'static {
+    /// The type of request for this importer (must be deserializable from JSON)
+    type ImportRequest: serde::de::DeserializeOwned + Send + Sync;
 
-/// Trait for importers that can import from files
-pub trait FileImporter: Importer {
-    /// Import data from a specific source (like a file or URL)
-    async fn import_from_source(
-        &self,
-        source: &Path,
-        options: Option<Self::ImportOptions>,
-    ) -> Result<ImportSource>;
-}
+    /// Import using a request
+    async fn import(&self, request: Self::ImportRequest) -> Result<ImportSource>;
 
-/// Trait for importers that can import using an identifier
-pub trait IdImporter: Importer {
-    /// The type of data this importer can handle
-    type ImportData;
+    /// Return a string name/identifier for this importer
+    fn name(&self) -> &'static str;
 
-    /// Import data using an identifier (like title_id)
-    async fn import_by_id(
-        &self,
-        id: &str,
-        options: Option<Self::ImportOptions>,
-    ) -> Result<ImportSource>;
+    /// Return a user-friendly display name for this importer
+    fn display_name(&self) -> &'static str;
 
-    /// Get metadata about what can be imported
-    async fn get_import_data(&self, id: &str) -> Result<Option<Self::ImportData>>;
+    /// Return a description of this importer
+    fn description(&self) -> &'static str;
 }

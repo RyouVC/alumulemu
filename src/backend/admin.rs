@@ -2,7 +2,6 @@
 use axum::{
     Json,
     extract::{Path, Query},
-    response::IntoResponse,
 };
 use http::StatusCode;
 use once_cell::sync::Lazy;
@@ -11,10 +10,32 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     games_dir,
-    import::import_utils::import_by_id,
+    import::registry,
     index::TinfoilResponse,
     router::{AlumRes, RescanOptions, update_metadata_from_filesystem},
 };
+
+// Define response types for API endpoints
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ApiResponse<T> {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<T>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ImporterInfo {
+    pub id: String,
+    pub display_name: String,
+    pub description: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ImportersResponse {
+    pub importers: Vec<ImporterInfo>,
+}
 
 // Global flag to track if a rescan job is already running
 static RESCAN_IN_PROGRESS: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
@@ -73,83 +94,84 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
     )))
 }
 
-// json body
-pub async fn generic_import_by_json(
-    Json(params): Json<(String, String)>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let (importer_name, id) = params;
-
+/// Process an import using the new JSON-based importers
+#[axum::debug_handler]
+pub async fn process_import(
+    Path(importer_id): Path<String>,
+    Json(json_body): Json<serde_json::Value>,
+) -> (StatusCode, Json<ApiResponse<()>>) {
     tracing::info!(
-        "Starting generic import with importer '{}' for ID: {}",
-        importer_name,
-        id
+        importer = importer_id,
+        "Processing import request with JSON body"
     );
 
-    todo!("Implement JSON import logic");
+    // Convert the JSON value to a string
+    let json_str = json_body.to_string();
 
-    // Use our new generic import_by_id utility
-    match import_by_id(Some(importer_name), id).await {
-        Ok(response) => Ok(response),
+    // Process the import - this already handles locks properly
+    match registry::import_with_json(&importer_id, &json_str).await {
+        Ok(import_source) => {
+            // Process the import source
+            match import_source.import().await {
+                Ok(_) => {
+                    tracing::info!("Import completed successfully");
+                    (
+                        StatusCode::OK,
+                        Json(ApiResponse {
+                            status: "success".to_string(),
+                            message: Some("Import completed successfully".to_string()),
+                            data: None,
+                        }),
+                    )
+                }
+                Err(e) => {
+                    tracing::error!("Error processing import: {}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiResponse {
+                            status: "error".to_string(),
+                            message: Some(format!("Error processing import: {}", e)),
+                            data: None,
+                        }),
+                    )
+                }
+            }
+        }
         Err(e) => {
             tracing::error!("Import error: {}", e);
-            Ok((
+            (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "status": "error",
-                    "message": e.to_string()
-                })),
+                Json(ApiResponse {
+                    status: "error".to_string(),
+                    message: Some(e.to_string()),
+                    data: None,
+                }),
             )
-                .into_response())
         }
     }
 }
 
-// Generic importer that allows specifying which importer to use
-pub async fn generic_import_by_id(
-    Path(params): Path<(String, String)>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let (importer_name, id) = params;
+/// Get a list of all available importers
+pub async fn list_importers() -> (StatusCode, Json<ApiResponse<ImportersResponse>>) {
+    // Create a scope to ensure the lock is dropped before returning
+    let importers = {
+        // This ensures the RwLockReadGuard is dropped before the function returns
+        registry::get_all_importers()
+            .into_iter()
+            .map(|importer| ImporterInfo {
+                id: importer.name().to_string(),
+                display_name: importer.display_name().to_string(),
+                description: importer.description().to_string(),
+            })
+            .collect::<Vec<_>>()
+    };
 
-    tracing::info!(
-        "Starting generic import with importer '{}' for ID: {}",
-        importer_name,
-        id
-    );
-
-    // Use our new generic import_by_id utility
-    match import_by_id(Some(importer_name), id).await {
-        Ok(response) => Ok(response),
-        Err(e) => {
-            tracing::error!("Import error: {}", e);
-            Ok((
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "status": "error",
-                    "message": e.to_string()
-                })),
-            )
-                .into_response())
-        }
-    }
-}
-
-// Auto-select importer based on ID format
-pub async fn auto_import_by_id(Path(id): Path<String>) -> Result<impl IntoResponse, StatusCode> {
-    tracing::info!("Auto-selecting importer for ID: {}", id);
-
-    // Use our new generic import_by_id utility with no specific importer
-    match import_by_id(None, id).await {
-        Ok(response) => Ok(response),
-        Err(e) => {
-            tracing::error!("Import error: {}", e);
-            Ok((
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "status": "error",
-                    "message": e.to_string()
-                })),
-            )
-                .into_response())
-        }
-    }
+    (
+        StatusCode::OK,
+        Json(ApiResponse {
+            status: "success".to_string(),
+            message: None,
+            data: Some(ImportersResponse { importers }),
+        }),
+    )
 }

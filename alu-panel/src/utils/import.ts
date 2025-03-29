@@ -1,33 +1,82 @@
 // game importer API for alu-panel
+
+// Define types for the API responses
+export interface ApiResponse<T> {
+  status: "success" | "error";
+  message?: string;
+  data?: T;
+}
+
+export interface ImporterInfo {
+  id: string;
+  display_name: string;
+  description: string;
+}
+
+export interface ImportersResponse {
+  importers: ImporterInfo[];
+}
+
+export interface ImportStartResponse {
+  importer: string;
+}
+
 import { TitleMetadata } from "@/utils/title";
 
-export async function importGameUltraNX(
-  titleMetadata: TitleMetadata
-): Promise<any> {
-  const title_id = titleMetadata.titleId;
-
-  // /admin/import/ultranx/{title_id} GET
-  const response = await fetch(`/admin/import/ultranx/${title_id}`, {
+/**
+ * Get a list of all available importers
+ * @returns Promise with the list of importers
+ */
+export async function getImporters(): Promise<ImporterInfo[]> {
+  const response = await fetch("/admin/import/list", {
     method: "GET",
   });
 
-  // Always parse the response body, regardless of status code
-  const data = await response.json();
+  const apiResponse = (await response.json()) as ApiResponse<ImportersResponse>;
 
-  // If the request was not successful, but we received a response with a message
-  if (!response.ok) {
-    // If the response contains error details, use them
-    if (data && data.message) {
-      throw new Error(data.message);
-    } else if (data && data.status === "error" && data.message) {
-      throw new Error(data.message);
-    } else {
-      // Fall back to statusText if no detailed message is available
-      throw new Error(`Error fetching game data: ${response.statusText}`);
-    }
+  if (!response.ok || apiResponse.status === "error") {
+    throw new Error(
+      apiResponse.message || `Error fetching importers: ${response.statusText}`
+    );
   }
 
-  return data;
+  return apiResponse.data?.importers || [];
+}
+
+/**
+ * Import a game using the UltraNX importer
+ * @param titleMetadata The title metadata containing the title ID
+ * @returns Promise with the import result
+ */
+export async function importGameUltraNX(
+  titleMetadata: TitleMetadata
+): Promise<ImportStartResponse> {
+  const payload = {
+    title_id: titleMetadata.titleId,
+    download_type: "fullpkg",
+  };
+
+  // Use the new JSON-based endpoint
+  const response = await fetch(`/admin/import/ultranx`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // Parse the response as an ApiResponse
+  const apiResponse =
+    (await response.json()) as ApiResponse<ImportStartResponse>;
+
+  // Handle errors
+  if (!response.ok || apiResponse.status === "error") {
+    throw new Error(
+      apiResponse.message || `Error importing game: ${response.statusText}`
+    );
+  }
+
+  return apiResponse.data as ImportStartResponse;
 }
 
 /**
@@ -35,30 +84,60 @@ export async function importGameUltraNX(
  * @param url The URL to import from
  * @returns Promise with the import result
  */
-export async function importGameURL(url: string): Promise<any> {
-  // Ensure the URL is properly encoded
-  const encodedURL = encodeURIComponent(url);
+export async function importGameURL(url: string): Promise<ImportStartResponse> {
+  const payload = { url };
 
-  // Use the auto-importer endpoint which will detect it's a URL and use the URL importer
-  const response = await fetch(`/admin/import/auto/${encodedURL}`, {
-    method: "GET",
+  // Use the new JSON-based endpoint
+  const response = await fetch(`/admin/import/url`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 
-  // Always parse the response body, regardless of status code
-  const data = await response.json();
+  // Parse the response as an ApiResponse
+  const apiResponse =
+    (await response.json()) as ApiResponse<ImportStartResponse>;
 
-  // If the request was not successful, but we received a response with a message
-  if (!response.ok) {
-    // If the response contains error details, use them
-    if (data && data.message) {
-      throw new Error(data.message);
-    } else if (data && data.status === "error" && data.message) {
-      throw new Error(data.message);
-    } else {
-      // Fall back to statusText if no detailed message is available
-      throw new Error(`Error fetching game data: ${response.statusText}`);
-    }
+  // Handle errors
+  if (!response.ok || apiResponse.status === "error") {
+    throw new Error(
+      apiResponse.message || `Error importing game: ${response.statusText}`
+    );
   }
 
-  return data;
+  return apiResponse.data as ImportStartResponse;
+}
+
+/**
+ * Generic function to import a game using any registered importer
+ * @param importerId The ID of the importer to use
+ * @param payload The importer-specific JSON payload
+ * @returns Promise with the import result
+ */
+export async function importGame(
+  importerId: string,
+  payload: any
+): Promise<ImportStartResponse> {
+  const response = await fetch(`/admin/import/${importerId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // Parse the response as an ApiResponse
+  const apiResponse =
+    (await response.json()) as ApiResponse<ImportStartResponse>;
+
+  // Handle errors
+  if (!response.ok || apiResponse.status === "error") {
+    throw new Error(
+      apiResponse.message || `Error importing game: ${response.statusText}`
+    );
+  }
+
+  return apiResponse.data as ImportStartResponse;
 }
