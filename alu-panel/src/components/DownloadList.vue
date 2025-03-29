@@ -9,9 +9,11 @@
             <h2 class="text-2xl font-bold text-base-content p-5 pt-9 pl-0">
               Download Stats
             </h2>
-            <AluButton 
-              v-if="stats.completed > 0 || stats.failed > 0 || stats.cancelled > 0" 
-              level="secondary" 
+            <AluButton
+              v-if="
+                stats.completed > 0 || stats.failed > 0 || stats.cancelled > 0
+              "
+              level="secondary"
               @click="handleCleanup"
               :disabled="isCleaning"
             >
@@ -56,10 +58,13 @@
             class="card bg-base-200 shadow-xl hover:bg-base-300 transition-colors duration-200 w-full"
           >
             <div class="card-body">
-              <h3 class="card-title text-base-content">Download #{{ download.id }}</h3>
+              <h3 class="card-title text-base-content">
+                Download #{{ download.id }}
+              </h3>
               <div class="space-y-2">
                 <p class="text-base-content/70 break-all">
-                  <span class="font-semibold">URL:</span> {{ download.item.url }}
+                  <span class="font-semibold">URL:</span>
+                  {{ download.item.url }}
                 </p>
                 <p class="text-base-content/70">
                   <span class="font-semibold">Status:</span>
@@ -69,8 +74,8 @@
                         download.progress.status === 'Downloading',
                       'text-warning': download.progress.status === 'Paused',
                       'text-success': download.progress.status === 'Completed',
-                      'text-error': 
-                        download.progress.status === 'Cancelled' || 
+                      'text-error':
+                        download.progress.status === 'Cancelled' ||
                         download.progress.status.startsWith('Failed'),
                     }"
                   >
@@ -78,23 +83,24 @@
                   </span>
                 </p>
                 <div class="w-full">
-                  <div class="flex justify-between text-sm mb-1">
-                    <span>Progress</span>
-                    <span v-if="download.progress.total_size">
-                      {{ formatBytes(download.progress.downloaded) }} /
-                      {{ formatBytes(download.progress.total_size) }}
-                      ({{ calculatePercentage(download.progress) }}%)
-                    </span>
-                    <span v-else>
-                      {{ formatBytes(download.progress.downloaded) }} / Unknown
-                    </span>
-                  </div>
-                  <progress
-                    class="progress progress-primary w-full"
-                    :value="download.progress.downloaded"
-                    :max="download.progress.total_size || 100"
-                  ></progress>
-                  <div class="card-actions justify-end pt-4">
+                  <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                      <span>Progress</span>
+                      <span v-if="download.progress.total_size">
+                        {{ formatBytes(download.progress.downloaded) }} /
+                        {{ formatBytes(download.progress.total_size) }}
+                        ({{ calculatePercentage(download.progress) }}%)
+                      </span>
+                      <span v-else>
+                        {{ formatBytes(download.progress.downloaded) }} /
+                        Unknown
+                      </span>
+                    </div>
+                    <progress
+                      class="progress progress-primary flex-1"
+                      :value="download.progress.downloaded"
+                      :max="download.progress.total_size || 100"
+                    ></progress>
                     <AluButton
                       v-if="
                         download.progress.status !== 'Completed' &&
@@ -124,17 +130,17 @@
 <script lang="ts">
 import { ref, onMounted, onUnmounted, defineComponent, computed } from "vue";
 import AluButton from "./AluButton.vue";
-import { 
-  fetchDownloads, 
-  fetchStats, 
+import {
+  fetchDownloads,
+  fetchStats,
   cancelDownload,
   cleanupDownloads,
   formatBytes,
-  calculatePercentage
+  calculatePercentage,
 } from "../utils/download";
-import type { 
-  DownloadStats, 
-  DownloadItemWithProgress 
+import type {
+  DownloadStats,
+  DownloadItemWithProgress,
 } from "../utils/download";
 
 export default defineComponent({
@@ -146,32 +152,34 @@ export default defineComponent({
     const downloads = ref<Record<string, DownloadItemWithProgress>>({});
     const stats = ref<DownloadStats | null>(null);
     const isCleaning = ref<boolean>(false);
-    
+
     const sortedDownloads = computed(() => {
       // Convert downloads object to array with id included
-      const downloadsArray = Object.entries(downloads.value).map(([id, download]) => ({
-        id,
-        ...download
-      }));
-      
+      const downloadsArray = Object.entries(downloads.value).map(
+        ([id, download]) => ({
+          id,
+          ...download,
+        }),
+      );
+
       // Sort by ID in descending order (newest first)
       return downloadsArray.sort((a, b) => b.id.localeCompare(a.id));
     });
-    
+
     const refreshData = async () => {
       try {
         const [downloadsData, statsData] = await Promise.all([
           fetchDownloads(),
-          fetchStats()
+          fetchStats(),
         ]);
-        
+
         downloads.value = downloadsData;
         stats.value = statsData;
       } catch (error) {
         console.error("Error refreshing download data:", error);
       }
     };
-    
+
     const handleCancelDownload = async (id: string) => {
       try {
         await cancelDownload(id);
@@ -180,10 +188,10 @@ export default defineComponent({
         console.error("Error cancelling download:", error);
       }
     };
-    
+
     const handleCleanup = async () => {
       if (isCleaning.value) return;
-      
+
       try {
         isCleaning.value = true;
         const result = await cleanupDownloads();
@@ -195,26 +203,26 @@ export default defineComponent({
         isCleaning.value = false;
       }
     };
-    
+
     // Set up polling to refresh downloads automatically
     let pollingInterval: number | undefined;
-    
+
     onMounted(() => {
       refreshData();
-      
+
       // Start polling for updates every 2 seconds
       pollingInterval = window.setInterval(() => {
         refreshData();
       }, 2000);
     });
-    
+
     // Clean up interval when component is unmounted
     onUnmounted(() => {
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
     });
-    
+
     return {
       downloads,
       sortedDownloads,
@@ -223,7 +231,7 @@ export default defineComponent({
       handleCancelDownload,
       handleCleanup,
       formatBytes,
-      calculatePercentage
+      calculatePercentage,
     };
   },
 });
