@@ -1,7 +1,6 @@
 // filepath: /home/cappy/Projects/alumulemu/src/backend/admin.rs
 use axum::{
-    Json,
-    extract::{Path, Query},
+    extract::{Path, Query}, response::IntoResponse, Json
 };
 use http::StatusCode;
 use once_cell::sync::Lazy;
@@ -35,6 +34,11 @@ pub struct ImporterInfo {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ImportersResponse {
     pub importers: Vec<ImporterInfo>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ImportStartResponse {
+    pub importer: String,
 }
 
 // Global flag to track if a rescan job is already running
@@ -99,7 +103,7 @@ pub async fn rescan_games(options: Query<RescanOptions>) -> AlumRes<Json<Tinfoil
 pub async fn process_import(
     Path(importer_id): Path<String>,
     Json(json_body): Json<serde_json::Value>,
-) -> (StatusCode, Json<ApiResponse<()>>) {
+) -> impl IntoResponse {
     tracing::info!(
         importer = importer_id,
         "Processing import request with JSON body"
@@ -108,47 +112,8 @@ pub async fn process_import(
     // Convert the JSON value to a string
     let json_str = json_body.to_string();
 
-    // Process the import - this already handles locks properly
-    match registry::import_with_json(&importer_id, &json_str).await {
-        Ok(import_source) => {
-            // Process the import source
-            match import_source.import().await {
-                Ok(_) => {
-                    tracing::info!("Import completed successfully");
-                    (
-                        StatusCode::OK,
-                        Json(ApiResponse {
-                            status: "success".to_string(),
-                            message: Some("Import completed successfully".to_string()),
-                            data: None,
-                        }),
-                    )
-                }
-                Err(e) => {
-                    tracing::error!("Error processing import: {}", e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ApiResponse {
-                            status: "error".to_string(),
-                            message: Some(format!("Error processing import: {}", e)),
-                            data: None,
-                        }),
-                    )
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!("Import error: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse {
-                    status: "error".to_string(),
-                    message: Some(e.to_string()),
-                    data: None,
-                }),
-            )
-        }
-    }
+    // Use the shared implementation from import_utils
+    crate::import::import_utils::import_with_json(&importer_id, &json_str).await
 }
 
 /// Get a list of all available importers

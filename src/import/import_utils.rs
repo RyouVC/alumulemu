@@ -42,44 +42,13 @@ impl IntoResponse for ImportError {
 /// Unified importer interface result type
 pub type ImportResult = std::result::Result<Response, ImportError>;
 
-/// Helper function to import by title ID using the UltraNX importer
-pub async fn import_by_title_id(
-    title_id: impl Into<String>,
-    download_type: Option<impl Into<String>>,
-) -> ImportResult {
-    let title_id = title_id.into();
-    let download_type = download_type
-        .map(|dt| dt.into())
-        .unwrap_or_else(|| "fullpkg".to_string());
-
-    // Create JSON for UltraNX importer
-    let json = serde_json::json!({
-        "title_id": title_id,
-        "download_type": download_type,
-    })
-    .to_string();
-
-    import_with_json("ultranx", &json).await
-}
-
-/// Helper function to import by URL
-pub async fn import_by_url(url: impl Into<String>) -> ImportResult {
-    let url = url.into();
-
-    // Create JSON for URL importer
-    let json = serde_json::json!({
-        "url": url,
-    })
-    .to_string();
-
-    import_with_json("url", &json).await
-}
 
 /// Helper function to import with JSON
-async fn import_with_json(importer_id: &str, json: &str) -> ImportResult {
+pub async fn import_with_json(importer_id: &str, json: &str) -> ImportResult {
     info!(importer = importer_id, "Starting import request with JSON");
 
-    // Use the registry to find and use the importer
+    // Use the registry to find the import source - this validates the request
+    // but doesn't start the download yet
     match registry::import_with_json(importer_id, json).await {
         Ok(import_source) => {
             // Store the importer_id for the response
@@ -88,7 +57,10 @@ async fn import_with_json(importer_id: &str, json: &str) -> ImportResult {
             // Start a background task to process the import
             let importer_id = importer_id.to_string();
             tokio::spawn(async move {
-                info!(importer = importer_id, "Starting import process");
+                info!(
+                    importer = importer_id,
+                    "Starting import process in background"
+                );
 
                 match import_source.import().await {
                     Ok(_) => {
@@ -110,6 +82,7 @@ async fn import_with_json(importer_id: &str, json: &str) -> ImportResult {
                 importer: String,
             }
 
+            // Return success immediately - the source was found and download queued
             Ok(Json(ApiResponse {
                 status: "success".to_string(),
                 message: Some("Import started".to_string()),
@@ -119,6 +92,10 @@ async fn import_with_json(importer_id: &str, json: &str) -> ImportResult {
             })
             .into_response())
         }
-        Err(e) => Err(ImportError::ImportFailed(e)),
+        Err(e) => {
+            // Return error immediately - the source wasn't found, no download started
+            error!(importer = importer_id, error = %e, "Import error (pre-download)");
+            Err(ImportError::ImportFailed(e))
+        }
     }
 }
