@@ -27,39 +27,30 @@ RUN apt-get update && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 RUN corepack prepare pnpm@latest --activate
 
-FROM node-base AS cargo-deps
+FROM node-base AS build
 WORKDIR /app
-# Copy only files needed for dependencies
-COPY Cargo.toml Cargo.lock ./
-# Create a dummy file to satisfy Rust build
-RUN mkdir -p src && echo "fn main() {println!(\"dummy\")}" > src/main.rs
-# Build dependencies only
-RUN --mount=type=cache,target=/sccache \
-    --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    cargo build --release
-# Remove the dummy build artifacts
-RUN rm -rf target/release/.fingerprint/alumulemu-*
 
-FROM cargo-deps AS frontend-deps
+# Copy frontend dependencies first
+COPY alu-panel/package.json alu-panel/pnpm-lock.yaml ./alu-panel/
 WORKDIR /app/alu-panel
-# Copy only files needed for npm dependencies
-COPY alu-panel/package.json alu-panel/pnpm-lock.yaml ./
 # Install dependencies
 RUN --mount=type=cache,target=/root/.pnpm-store \
     pnpm install
 
-FROM frontend-deps AS build
-# Now copy the rest of the source code
+# Copy Rust dependencies
 WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+
+# Copy the rest of the source code
 COPY . .
-# Build the Rust project with cached dependencies
+
+# Build the Rust project
 RUN --mount=type=cache,target=/sccache \
     --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
     cargo build --release
 
-# Frontend build with cached dependencies
+# Frontend build
 WORKDIR /app/alu-panel
 RUN --mount=type=cache,target=/root/.pnpm-store \
     pnpm build
