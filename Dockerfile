@@ -1,5 +1,4 @@
 FROM debian:bookworm AS base
-
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
@@ -10,44 +9,65 @@ RUN apt-get update && apt-get install -y \
     sccache \
     && rm -rf /var/lib/apt/lists/*
 
-FROM base AS build
-
+FROM base AS rust-base
 # Get rustup and install the stable toolchain
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup install 1.85.1
-
 # Configure Rust to use sccache
 ENV RUSTC_WRAPPER=/usr/bin/sccache
 ENV SCCACHE_DIR=/sccache
 ENV SCCACHE_CACHE_SIZE=5G
 
-# install node
-RUN curl -sL https://deb.nodesource.com/setup_23.x | bash 
-
+FROM rust-base AS node-base
 # Install Node.js
-RUN apt-get install -y nodejs
-
+RUN curl -sL https://deb.nodesource.com/setup_23.x | bash 
+RUN apt-get update && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 # Install PNPM
 RUN corepack enable
 RUN corepack prepare pnpm@latest --activate
 
-# Build the project
+FROM node-base AS cargo-deps
+WORKDIR /app
+# Copy only files needed for dependencies
+COPY Cargo.toml Cargo.lock ./
+# Create a dummy file to satisfy Rust build
+RUN mkdir -p src && echo "fn main() {println!(\"dummy\")}" > src/main.rs
+# Build dependencies only
+RUN --mount=type=cache,target=/sccache \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    cargo build --release
+# Remove the dummy build artifacts
+RUN rm -rf target/release/.fingerprint/alumulemu-*
+
+FROM cargo-deps AS frontend-deps
+WORKDIR /app/alu-panel
+# Copy only files needed for npm dependencies
+COPY alu-panel/package.json alu-panel/pnpm-lock.yaml ./
+# Install dependencies
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install
+
+FROM frontend-deps AS build
+# Now copy the rest of the source code
 WORKDIR /app
 COPY . .
-RUN --mount=type=cache,target=/sccache cargo build --release
+# Build the Rust project with cached dependencies
+RUN --mount=type=cache,target=/sccache \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    cargo build --release
 
-# Frontend build
+# Frontend build with cached dependencies
 WORKDIR /app/alu-panel
-RUN pnpm install
-RUN pnpm build
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm build
 
 FROM base AS runtime
-
 COPY --from=build /app/target/release/alumulemu /app/alumulemu
 COPY --from=build /app/alu-panel/dist /app/alu-panel/dist
 WORKDIR /app
-
 ENV ALU_ROM_DIR=/roms
 ENV ALU_DATABASE_URL="rocksdb:///data"
 ENV RUST_LOG=info
@@ -57,8 +77,6 @@ ENV ALU_PROD_KEYS="/keys/prod.keys"
 ENV ALU_TITLE_KEYS="/keys/title.keys"
 ENV ALU_HOST="0.0.0.0:3000"
 ENV ALU_CACHE_DIR="/var/cache/alumulemu"
-
 EXPOSE 3000
-
 CMD ["/app/alumulemu"]
 
