@@ -64,15 +64,14 @@
                 </p>
                 <p class="text-base-content/70">
                   <span class="font-semibold">Status:</span>
-                  <span :class="{
-                    'text-primary':
-                      download.progress.status === 'Downloading',
-                    'text-warning': download.progress.status === 'Paused',
-                    'text-success': download.progress.status === 'Completed',
-                    'text-error':
-                      download.progress.status === 'Cancelled' ||
-                      download.progress.status.startsWith('Failed'),
-                  }">
+                    <span :class="{
+                    'text-primary': getStatusString(download.progress.status) === 'Downloading',
+                    'text-warning': getStatusString(download.progress.status) === 'Paused',
+                    'text-success': getStatusString(download.progress.status) === 'Completed',
+                    'text-error': 
+                      getStatusString(download.progress.status) === 'Cancelled' || 
+                      getStatusString(download.progress.status).startsWith('Failed'),
+                    }">
                     {{ download.progress.status }}
                   </span>
                 </p>
@@ -93,9 +92,8 @@
                     <progress class="progress progress-primary flex-1" :value="download.progress.downloaded"
                       :max="download.progress.total_size || 100"></progress>
                     <AluButton v-if="
-                      download.progress.status !== 'Completed' &&
-                      download.progress.status !== 'Cancelled' &&
-                      !download.progress.status.startsWith('Failed')
+                      !['Completed', 'Cancelled'].includes(getStatusString(download.progress.status)) &&
+                      !getStatusString(download.progress.status).startsWith('Failed')
                     " level="danger" size="small" @click="handleCancelDownload(download.id)">
                       Cancel Download
                     </AluButton>
@@ -149,6 +147,7 @@ import {
   cleanupDownloads,
   formatBytes,
   calculatePercentage,
+  getStatusString,
 } from "../utils/download";
 import { importGameURL } from "../utils/import";
 import type {
@@ -328,6 +327,7 @@ export default defineComponent({
       handleCleanup,
       formatBytes,
       calculatePercentage,
+      getStatusString,
       openUrlDialog,
       closeUrlDialog,
       submitUrlDownload,

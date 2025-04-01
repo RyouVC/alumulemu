@@ -10,17 +10,29 @@ export type DownloadStatus =
   | "Cancelled"
   | "Failed";
 
+// Failure status with error message
+export interface FailedStatus {
+  Failed: string;
+}
+
 // Download progress information
 export interface Progress {
   total_size: number | null;
   downloaded: number;
-  status: DownloadStatus | string; // Using string to account for "Failed: reason" format
-  file_path?: string;
+  status: DownloadStatus | FailedStatus;
+  file_path?: string | null;
 }
 
 // A single download queue item
 export interface DownloadQueueItem {
-  id?: string;
+  id?:
+    | {
+        tb: string;
+        id: {
+          String: string;
+        };
+      }
+    | string;
   url: string;
   output_path: string;
   progress: Progress;
@@ -59,6 +71,18 @@ export const formatBytes = (bytes: number | null | undefined): string => {
 export const calculatePercentage = (progress: Progress): string => {
   if (!progress.total_size) return "0";
   return ((progress.downloaded / progress.total_size) * 100).toFixed(1);
+};
+
+// Helper function to get status string
+export const getStatusString = (
+  status: DownloadStatus | FailedStatus
+): string => {
+  if (typeof status === "string") {
+    return status;
+  } else if ("Failed" in status) {
+    return `Failed: ${status.Failed}`;
+  }
+  return "Unknown";
 };
 
 // Download API functions
