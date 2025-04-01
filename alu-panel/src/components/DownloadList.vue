@@ -63,7 +63,7 @@
                   {{ download.item.url }}
                 </p>
                 <p class="text-base-content/70">
-                  <span class="font-semibold">Status:</span>
+                  <span class="font-semibold">Status: </span>
                     <span :class="{
                     'text-primary': getStatusString(download.progress.status) === 'Downloading',
                     'text-warning': getStatusString(download.progress.status) === 'Paused',
@@ -72,7 +72,7 @@
                       getStatusString(download.progress.status) === 'Cancelled' || 
                       getStatusString(download.progress.status).startsWith('Failed'),
                     }">
-                    {{ download.progress.status }}
+                    {{ getStatusString(download.progress.status) }}
                   </span>
                 </p>
                 <div class="w-full">

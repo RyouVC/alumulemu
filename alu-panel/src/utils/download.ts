@@ -77,12 +77,20 @@ export const calculatePercentage = (progress: Progress): string => {
 export const getStatusString = (
   status: DownloadStatus | FailedStatus
 ): string => {
+  console.debug("Getting status string for:", status);
+  let result: string;
+  
   if (typeof status === "string") {
-    return status;
+    result = status;
   } else if ("Failed" in status) {
-    return `Failed: ${status.Failed}`;
+    result = `Failed: ${status.Failed}`;
+  } else {
+    console.debug("Unknown status type:", status);
+    result = "Unknown";
   }
-  return "Unknown";
+  
+  console.debug("Returning status:", result);
+  return result;
 };
 
 // Download API functions
