@@ -758,36 +758,36 @@ async fn import_entry_to_db(title: TitleDbEntry, locale: &str) -> Result<()> {
     let mut last_error = None;
 
     while retry_count < max_retries {
-        match DB
+        let upsert_result: Result<Option<Title>> = DB
             .upsert((&table_name, &nsuid_str))
             .content(title.clone())
             .await
-        {
-            Ok(ent) => {
-                tracing::trace!("Title imported");
-                return Ok(());
-            }
-            Err(e) => {
-                last_error = Some(e);
-                retry_count += 1;
+            .map_err(|e| color_eyre::eyre::eyre!(e));
 
-                if retry_count < max_retries {
-                    // Exponential backoff: wait longer after each failure
-                    let delay = std::time::Duration::from_millis(50 * 2u64.pow(retry_count as u32));
-                    tracing::warn!(
-                        "Database lock error during import, retrying in {:?} (attempt {}/{})",
-                        delay,
-                        retry_count,
-                        max_retries
-                    );
-                    tokio::time::sleep(delay).await;
-                }
+        if let Ok(_ent) = upsert_result {
+            tracing::trace!("Title imported");
+            return Ok(());
+        } else if let Err(e) = upsert_result {
+            last_error = Some(e);
+            retry_count += 1;
+
+            if retry_count < max_retries {
+                // Exponential backoff: wait longer after each failure
+                let delay = std::time::Duration::from_millis(50 * 2u64.pow(retry_count as u32));
+                tracing::warn!(
+                    "Database lock error during import, retrying in {:?} (attempt {}/{})",
+                    delay,
+                    retry_count,
+                    max_retries
+                );
+                tokio::time::sleep(delay).await;
             }
         }
     }
 
     // If we get here, all retries failed
     Err(last_error
+        .map(|e| color_eyre::eyre::eyre!("Database error during import: {}", e))
         .unwrap_or_else(|| color_eyre::eyre::eyre!("Unknown database error during import")))
 }
 

@@ -317,7 +317,7 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
         // Get the path from the event
         let event_path = match event.paths.first() {
             Some(path) => path,
-            None => continue,
+            _ => continue,
         };
 
         // Check if the file has a valid extension
@@ -431,7 +431,7 @@ pub async fn generate_index_from_metadata() -> color_eyre::eyre::Result<Index> {
         // Handle potential missing filename more gracefully
         let filename = match path.file_name() {
             Some(name) => name.to_string_lossy().into_owned(),
-            None => {
+            _ => {
                 tracing::warn!("Skipping entry with invalid path: {}", metadata.path);
                 continue;
             }
@@ -475,7 +475,7 @@ async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse
         let new_path = path.trim_end_matches('/');
         let new_path_and_query = match uri.query() {
             Some(query) => format!("{}?{}", new_path, query),
-            None => new_path.to_string(),
+            _ => new_path.to_string(),
         };
 
         // Try to convert to a valid URI
