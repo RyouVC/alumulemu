@@ -753,11 +753,42 @@ async fn import_entry_to_db(title: TitleDbEntry, locale: &str) -> Result<()> {
     let table_name = format!("titles_{}", locale);
     let nsuid = title.nsu_id.unwrap_or_default();
     let nsuid_str = nsuid.to_string(); // Convert u64 to String because surrealdb doesnt like numbered indexes
-    let _ent: Option<Title> = DB.upsert((&table_name, &nsuid_str)).content(title).await?;
+    let max_retries = 5;
+    let mut retry_count = 0;
+    let mut last_error = None;
 
-    tracing::trace!("Title imported");
+    while retry_count < max_retries {
+        match DB
+            .upsert((&table_name, &nsuid_str))
+            .content(title.clone())
+            .await
+        {
+            Ok(ent) => {
+                tracing::trace!("Title imported");
+                return Ok(());
+            }
+            Err(e) => {
+                last_error = Some(e);
+                retry_count += 1;
 
-    Ok(())
+                if retry_count < max_retries {
+                    // Exponential backoff: wait longer after each failure
+                    let delay = std::time::Duration::from_millis(50 * 2u64.pow(retry_count as u32));
+                    tracing::warn!(
+                        "Database lock error during import, retrying in {:?} (attempt {}/{})",
+                        delay,
+                        retry_count,
+                        max_retries
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+            }
+        }
+    }
+
+    // If we get here, all retries failed
+    Err(last_error
+        .unwrap_or_else(|| color_eyre::eyre::eyre!("Unknown database error during import")))
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
