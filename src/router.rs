@@ -413,7 +413,7 @@ async fn process_fs_events(rx: &mut tokio::sync::mpsc::Receiver<notify::Event>, 
 }
 
 #[tracing::instrument]
-pub async fn generate_index_from_metadata() -> color_eyre::eyre::Result<Index> {
+pub async fn index_from_existing_data() -> color_eyre::eyre::Result<Index> {
     let mut idx = Index::default();
 
     // Get all metadata with proper error handling

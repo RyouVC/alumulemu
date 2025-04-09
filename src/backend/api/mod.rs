@@ -1,7 +1,7 @@
 use crate::{
     db::NspMetadata,
     index::{Index, TinfoilResponse},
-    router::{AlumRes, generate_index_from_metadata},
+    router::{AlumRes, index_from_existing_data},
     util::format_game_name,
 };
 use axum::{
@@ -11,6 +11,9 @@ use axum::{
     routing::get,
 };
 use http::{StatusCode, header};
+use once_cell::sync::Lazy;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio_util::io::ReaderStream;
 
 use super::user::user_router;
@@ -18,10 +21,77 @@ use super::user::user_router;
 pub mod downloader;
 pub mod metadata;
 
+// Default cache lifetime in seconds (5 minutes)
+const CACHE_LIFETIME_SECONDS: u64 = 300;
+
+// Structure to hold cached index data with timestamp
+struct IndexCache {
+    data: Option<Index>,
+    last_updated: Option<Instant>,
+}
+
+// Create a global cache using lazy_static
+static INDEX_CACHE: Lazy<Arc<Mutex<IndexCache>>> = Lazy::new(|| {
+    Arc::new(Mutex::new(IndexCache {
+        data: None,
+        last_updated: None,
+    }))
+});
+
 pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
-    let games = generate_index_from_metadata().await?;
-    // tracing::trace!("Games retrieved: {:?}", games);
+    // Try to get cached version first
+    {
+        let cache = INDEX_CACHE.lock().unwrap();
+
+        // Check if cache exists and is still valid
+        if let (Some(cached_data), Some(timestamp)) = (&cache.data, cache.last_updated) {
+            let elapsed = timestamp.elapsed();
+            if elapsed < Duration::from_secs(CACHE_LIFETIME_SECONDS) {
+                tracing::debug!(
+                    "Serving tinfoil index from cache (age: {}s)",
+                    elapsed.as_secs()
+                );
+                return Ok(Json(cached_data.clone()));
+            }
+            tracing::debug!(
+                "Cache expired after {}s (max: {}s), regenerating",
+                elapsed.as_secs(),
+                CACHE_LIFETIME_SECONDS
+            );
+        } else {
+            tracing::debug!("No cached index available, generating new index");
+        }
+    }
+
+    // If we got here, we need to regenerate the cache
+    let mut games = index_from_existing_data().await?;
+
+    // Now, merge it with the extras if possible
+    if let Ok(extras) = Index::get_extra_indexes().await {
+        extras.iter().for_each(|e_idx| {
+            games.merge_file_index(e_idx.clone());
+
+            tracing::trace!("Merged extra index: {:?}", e_idx);
+        });
+    }
+
+    // Update the cache with new data
+    {
+        let mut cache = INDEX_CACHE.lock().unwrap();
+        cache.data = Some(games.clone());
+        cache.last_updated = Some(Instant::now());
+        tracing::info!("Updated tinfoil index cache");
+    }
+
     Ok(Json(games))
+}
+
+// Function to manually invalidate the cache if needed
+pub fn invalidate_index_cache() {
+    let mut cache = INDEX_CACHE.lock().unwrap();
+    cache.data = None;
+    cache.last_updated = None;
+    tracing::info!("Tinfoil index cache invalidated");
 }
 
 pub async fn download_file(

@@ -44,6 +44,55 @@ fn parse_secondary_locale_string(locale: &str) -> Result<(String, String)> {
     }
 }
 
+async fn import_extra_indexes() -> Result<()> {
+    let config = config::config();
+    let indexes = config.backend_config.extra_indexes.clone();
+
+    for index in indexes {
+        tracing::info!(%index, "Loading extra index");
+        // we will just name indexes after the URL
+        let idx = index::Index::load_index_url(&index).await?;
+
+        idx.save_extra_index(&index).await?;
+        tracing::info!(%index, "Index loaded and saved");
+    }
+    Ok(())
+}
+
+async fn schedule_idx_downloads() -> Result<()> {
+    const EXPRESSION: &str = "0 0 0,6,12,18 * * * *";
+
+    let schedule = Schedule::from_str(EXPRESSION)
+        .map_err(|e| color_eyre::Report::msg(format!("Invalid cron expression: {}", e)))?;
+
+    loop {
+        let now = chrono::Utc::now();
+        if let Some(next_time) = schedule.upcoming(chrono::Utc).next() {
+            let duration_until_next = next_time - now;
+            let seconds_until_next = duration_until_next.num_seconds();
+
+            tracing::info!(
+                "Next scheduled index download at {} (in {} hours and {} minutes)",
+                next_time,
+                seconds_until_next / 3600,
+                (seconds_until_next % 3600) / 60
+            );
+
+            if seconds_until_next > 0 {
+                tokio::time::sleep(Duration::from_secs(seconds_until_next as u64)).await;
+            }
+
+            tracing::info!("Scheduled index download starting");
+            if let Err(e) = import_extra_indexes().await {
+                tracing::error!("Scheduled index download failed: {}", e);
+            }
+        } else {
+            tracing::error!("Failed to determine next schedule time");
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+        }
+    }
+}
+
 async fn import_titledb(lang: &str, region: &str) -> Result<()> {
     let client = Client::new();
     let cache_dir = util::titledb_cache_dir();
@@ -313,6 +362,20 @@ async fn main() -> color_eyre::Result<()> {
 
         Ok::<(), color_eyre::Report>(())
     });
+
+    // index importer job
+    tokio::spawn(async move {
+
+        // Run the initial import of extra indexes
+        if let Err(e) = import_extra_indexes().await {
+            tracing::error!("Initial index import failed: {}", e);
+        }
+
+        if let Err(e) = schedule_idx_downloads().await {
+            tracing::error!("Scheduled index download failed: {}", e);
+        }
+    });
+
 
     let app = create_router();
 

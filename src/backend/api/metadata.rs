@@ -7,9 +7,12 @@ use axum::{
 use http::StatusCode;
 
 use crate::{
+    backend::api::invalidate_index_cache,
     db::NspMetadata,
-    router::AlumRes,
+    index::Index,
+    router::{AlumRes, index_from_existing_data},
     titledb::{Metaview, Title},
+    util::format_game_name,
 };
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]

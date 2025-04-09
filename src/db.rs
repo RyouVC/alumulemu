@@ -40,6 +40,12 @@ impl NspMetadata {
             .upsert(("nsp_metadata", &self.path))
             .content(self.clone())
             .await?;
+
+        // Invalidate the tinfoil index cache when metadata changes
+        crate::backend::api::invalidate_index_cache();
+        tracing::debug!("Invalidated tinfoil index cache after metadata update");
+
+
         Ok(created)
     }
 
@@ -47,6 +53,11 @@ impl NspMetadata {
     pub async fn delete(&self) -> surrealdb::Result<()> {
         tracing::debug!("Deleting metadata for {}", self.path);
         let _: Option<NspMetadata> = DB.delete(("nsp_metadata", &self.path)).await?;
+
+        // Invalidate the tinfoil index cache when metadata is deleted
+        crate::backend::api::invalidate_index_cache();
+        tracing::debug!("Invalidated tinfoil index cache after metadata deletion");
+
         Ok(())
     }
 
@@ -54,6 +65,11 @@ impl NspMetadata {
     pub async fn delete_cache() -> surrealdb::Result<()> {
         tracing::debug!("Deleting all metadata from cache");
         let _: Vec<NspMetadata> = DB.delete("nsp_metadata").await?;
+
+        // Invalidate the tinfoil index cache when all metadata is deleted
+        crate::backend::api::invalidate_index_cache();
+        tracing::debug!("Invalidated tinfoil index cache after clearing metadata cache");
+
         Ok(())
     }
 

@@ -69,6 +69,15 @@ pub struct BackendConfig {
     /// Cache directory for importers and other temporary files, they should be cleaned up after use
     #[clap(long, env = "ALU_CACHE_DIR", default_value = "/tmp/alumulemu")]
     pub cache_dir: String,
+
+    /// Extra Tinfoil indexes to merge into the database
+    #[clap(
+        long,
+        env = "ALU_MERGE_INDEXES",
+        value_delimiter = ',',
+        default_value = ""
+    )]
+    pub extra_indexes: Vec<String>,
 }
 
 /// Safely determine the default path for prod.keys

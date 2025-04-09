@@ -9,9 +9,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Serialize, Deserialize, Debug)]
+use crate::db::DB;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Title {
+pub struct TinfoilTitleMeta {
     #[serde(rename = "id")]
     pub title_id: String,
     pub name: String,
@@ -27,11 +29,11 @@ pub struct Title {
     pub rank: u32,
 }
 
-impl TryFrom<crate::titledb::Title> for Title {
+impl TryFrom<crate::titledb::Title> for TinfoilTitleMeta {
     type Error = crate::router::Error;
 
     fn try_from(title: crate::titledb::Title) -> Result<Self, Self::Error> {
-        Ok(Title {
+        Ok(TinfoilTitleMeta {
             title_id: title.title_id.unwrap_or_default(),
             name: title.name.unwrap_or_default(),
             version: title.version.unwrap_or_default().parse().unwrap(),
@@ -49,7 +51,7 @@ impl TryFrom<crate::titledb::Title> for Title {
 /// A file entry in the tinfoil index.
 ///
 /// Reference: https://blawar.github.io/tinfoil/custom_index/
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileEntry {
     /// Path or URL to the file.
     /// Can be a relative HTTP path or some kind of Tinfoil path spec.
@@ -66,7 +68,7 @@ pub struct FileEntry {
 
 /// Actions to be commited to the client's sources list.
 ///
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SourceAction {
     pub url: Option<String>,
     pub title: Option<String>,
@@ -91,7 +93,7 @@ pub struct SourceAction {
 ///   ]
 /// }
 /// ```
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum SourceList {
     /// Simply adds a source to the client's sources list
@@ -175,13 +177,14 @@ impl From<TinfoilResponse> for Result<Index, String> {
 // {
 //     "clientCertPub": "-----BEGIN PUBLIC KEY----- ....",
 //     "clientCertKey": "-----BEGIN PRIVATE KEY----- ...."
-// }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientCerts {
     pub client_cert_pub: String,
     pub client_cert_key: String,
 }
+
+pub const EXTRA_INDEXES_TABLE: &str = "extra_indexes";
 
 /// A Tinfoil index, which is the primary response type for Tinfoil.
 ///
@@ -189,7 +192,7 @@ pub struct ClientCerts {
 ///
 /// Consider writing wrapper types that become serialized as this JSON format instead.
 /// See [`TinfoilResponse`] for an example.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(default)]
 pub struct Index {
     /// Message to display to the user on connection success.
@@ -244,8 +247,11 @@ pub struct Index {
 
     /// Optional client certificate and key for mutual TLS authentication.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(flatten)]
-    pub client_certs: Option<ClientCerts>,
+    #[serde(rename = "clientCertPub")]
+    pub client_cert_pub: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "clientCertKey")]
+    pub client_cert_key: Option<String>,
 
     /// Source list actions to be commited to the client's sources list.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -258,7 +264,7 @@ pub struct Index {
     // personal note: I wish there was a way to make Tinfoil itself not fetch the upstream database, but
     // we can only wish.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub titledb: BTreeMap<String, Title>,
+    pub titledb: BTreeMap<String, TinfoilTitleMeta>,
 
     /// Theme blacklists to be sent to the client, optional.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -302,8 +308,52 @@ impl Index {
         self.files.push(file);
     }
 
+    /// Naively merges the file index from another index.
+    ///
+    /// Useful for aggregrating multiple indexes into one.
+    /// This is a naive merge, and will not check for duplicates.
+    pub fn merge_file_index(&mut self, other: Index) {
+        self.files.extend(other.files);
+    }
+
+    /// Naively adds a file to the index.
+    pub fn naive_add_file(&mut self, url: &str, size: u64) {
+        let file_link = FileEntry {
+            url: url.to_string(),
+            size,
+        };
+        self.files.push(file_link);
+    }
+
+    pub async fn load_index_url(url: &str) -> color_eyre::Result<Self> {
+        let response = reqwest::get(url).await?;
+        let index: Index = response.json().await?;
+        Ok(index)
+    }
+
+    /// Saves the extra index to the database table.
+    pub async fn save_extra_index(self, src_name: &str) -> color_eyre::Result<()> {
+        let db: Option<Self> = DB
+            .upsert((EXTRA_INDEXES_TABLE, src_name))
+            .content(self)
+            .await?;
+        if db.is_none() {
+            tracing::error!("Failed to save extra index to database");
+            return Err(color_eyre::Report::msg(
+                "Failed to save extra index to database",
+            ));
+        }
+        tracing::info!("Saved extra index to database");
+        Ok(())
+    }
+
+    pub async fn get_extra_indexes() -> color_eyre::Result<Vec<Index>> {
+        let db: Vec<Self> = DB.select(EXTRA_INDEXES_TABLE).await?.into_iter().collect();
+        Ok(db)
+    }
+
     /// Add a custom metadata entry for a title.
-    pub fn add_title_metadata(&mut self, title: Title) {
+    pub fn add_title_metadata(&mut self, title: TinfoilTitleMeta) {
         self.titledb.insert(title.title_id.clone(), title);
     }
 }
