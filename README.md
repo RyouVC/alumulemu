@@ -23,11 +23,13 @@ Alumulemu exports the repository as a [Tinfoil index](https://blawar.github.io/t
 
 ## Planned features
 
-- Merging/proxying other Tinfoil repositories, allowing alumulemu to act as a central repository for multiple upstream repositories.
+- Merging/proxying other Tinfoil repositories, allowing alumulemu to act as a central repository for multiple upstream repositories. (PARTIALLY DONE)
   - Merging with non-HTTP or file-based sources, such as Google Drive, 1fichier, or other sources.
   - Caching upstream repositories for faster access
+  - ~~Merging metadata from other Tinfoil repositories/alumulemu instances~~ (DONE, Indexes are now fetched and merged into the main index every 6 hours)
 - Encryption support, as seen in [Tinfoil DRM specification](https://blawar.github.io/tinfoil/drm/).
 - Custom metadata editing and management by title ID
+  - Interface to edit metadata for a specific title ID (You can already do this by merging with another Tinfoil index, but this is not user-friendly)
 - Tinfoil Theme repository support
   - Blacklist/whitelist for specific themes
   - Optional MOTD support (Currently disabled explicitly in alumulemu)

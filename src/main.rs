@@ -12,6 +12,7 @@ use color_eyre::Result;
 use cron::Schedule;
 use db::init_database;
 use import::registry::init_registry;
+use index::ExtraIndexesImport;
 use reqwest::Client;
 use router::{create_router, watch_filesystem_for_changes};
 use std::str::FromStr;
@@ -46,9 +47,23 @@ fn parse_secondary_locale_string(locale: &str) -> Result<(String, String)> {
 
 async fn import_extra_indexes() -> Result<()> {
     let config = config::config();
-    let indexes = config.backend_config.extra_indexes.clone();
+    let idx_to_addlist = config.backend_config.extra_indexes.clone();
 
-    for index in indexes {
+    // Add indexes to list
+    for url in idx_to_addlist {
+        tracing::info!(%url, "Adding extra index to the list");
+
+        let e_idx = ExtraIndexesImport::new(url);
+        e_idx.add().await?;
+    }
+
+    let idx_to_import = ExtraIndexesImport::list()
+        .await?
+        .iter()
+        .map(|i| i.url.clone())
+        .collect::<Vec<_>>();
+
+    for index in idx_to_import {
         tracing::info!(%index, "Loading extra index");
         // we will just name indexes after the URL
         let idx = index::Index::load_index_url(&index).await?;
@@ -365,7 +380,6 @@ async fn main() -> color_eyre::Result<()> {
 
     // index importer job
     tokio::spawn(async move {
-
         // Run the initial import of extra indexes
         if let Err(e) = import_extra_indexes().await {
             tracing::error!("Initial index import failed: {}", e);
@@ -375,7 +389,6 @@ async fn main() -> color_eyre::Result<()> {
             tracing::error!("Scheduled index download failed: {}", e);
         }
     });
-
 
     let app = create_router();
 

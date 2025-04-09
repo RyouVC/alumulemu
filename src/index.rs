@@ -9,6 +9,59 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub const EXTRA_INDEXES_LIST_TABLE: &str = "extra_indexes_list";
+
+/// Additional indexes list to sync
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtraIndexesImport {
+    /// URL to download the index from
+    pub url: String,
+}
+
+impl ExtraIndexesImport {
+    pub fn new(url: String) -> Self {
+        ExtraIndexesImport { url }
+    }
+
+    pub async fn list() -> color_eyre::Result<Vec<Self>> {
+        let db: Vec<Self> = DB
+            .select(EXTRA_INDEXES_LIST_TABLE)
+            .await?
+            .into_iter()
+            .collect();
+        Ok(db)
+    }
+
+    pub async fn add(&self) -> color_eyre::Result<()> {
+        let db: Option<Self> = DB
+            .upsert((EXTRA_INDEXES_LIST_TABLE, &self.url))
+            .content(self.clone())
+            .await?;
+        if db.is_none() {
+            tracing::error!("Failed to save extra index to database");
+            return Err(color_eyre::Report::msg(
+                "Failed to save extra index to database",
+            ));
+        }
+        tracing::info!("Saved extra index to database");
+        Ok(())
+    }
+    /// Deletes the extra index from the database.
+    ///
+    /// This does not actually delete the imported data itself, only the task to import it.
+    pub async fn delete(&self) -> color_eyre::Result<()> {
+        let db: Option<Self> = DB.delete((EXTRA_INDEXES_LIST_TABLE, &self.url)).await?;
+        if db.is_none() {
+            tracing::error!("Failed to delete extra index from database");
+            return Err(color_eyre::Report::msg(
+                "Failed to delete extra index from database",
+            ));
+        }
+        tracing::info!("Deleted extra index from database");
+        Ok(())
+    }
+}
+
 use crate::db::DB;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -314,6 +367,10 @@ impl Index {
     /// This is a naive merge, and will not check for duplicates.
     pub fn merge_file_index(&mut self, other: Index) {
         self.files.extend(other.files);
+    }
+
+    pub fn merge_titledb(&mut self, other: Index) {
+        self.titledb.extend(other.titledb);
     }
 
     /// Naively adds a file to the index.

@@ -70,6 +70,7 @@ pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
     if let Ok(extras) = Index::get_extra_indexes().await {
         extras.iter().for_each(|e_idx| {
             games.merge_file_index(e_idx.clone());
+            games.merge_titledb(e_idx.clone());
 
             tracing::trace!("Merged extra index: {:?}", e_idx);
         });
