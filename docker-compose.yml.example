@@ -12,7 +12,37 @@ services:
       - ALU_ROM_DIR=/path/to/roms
       - ALU_PROD_KEYS=/path/to/keys
       - ALU_TITLE_KEYS=/path/to/titlekeys
+      # uncomment for dedicated custom surrealdb setup
+      # - ALU_DATABASE_URL=ws://localhost:8000
+      # - ALU_DATABASE_AUTH_METHOD=root
+      # - ALU_SURREAL_ROOT_USERNAME=root
+      # - ALU_SURREAL_ROOT_PASSWORD=root
     volumes:
       - /path/to/roms:/path/to/roms
       - /path/to/keys:/path/to/keys
       - /path/to/titlekeys:/path/to/titlekeys
+
+
+  # Optional: uncomment for dedicated surrealdb setup
+  # surrealdb:
+  #   image: "surrealdb/surrealdb:latest"
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - "SURREAL_PATH=surrealkv:///data"
+  #     - "SURREAL_USER=root"
+  #     - "SURREAL_PASSWORD=root"
+  #     - "SURREAL_BIND=0.0.0.0:8000"
+  #   entrypoint:
+  #     - /surreal
+  #     - start
+  #     - --username
+  #     - root
+  #     - --password
+  #     - root
+  #   user: root
+  #   volumes:
+  #     - "surrealdb-data:/data"
+    # depends_on:
+    #   init-data:
+    #     condition: service_completed_successfully
