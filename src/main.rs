@@ -47,7 +47,13 @@ fn parse_secondary_locale_string(locale: &str) -> Result<(String, String)> {
 
 async fn import_extra_indexes() -> Result<()> {
     let config = config::config();
-    let idx_to_addlist = config.backend_config.extra_indexes.clone();
+    // Use the helper method to get only valid indexes
+    let idx_to_addlist = config.backend_config.get_valid_extra_indexes();
+
+    if idx_to_addlist.is_empty() {
+        info!("No extra indexes to import");
+        return Ok(());
+    }
 
     // Add indexes to list
     for url in idx_to_addlist {

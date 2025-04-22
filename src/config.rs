@@ -110,6 +110,15 @@ impl BackendConfig {
             .collect()
     }
 
+    /// Get valid extra indexes (filters out empty strings)
+    pub fn get_valid_extra_indexes(&self) -> Vec<String> {
+        self.extra_indexes
+            .iter()
+            .filter(|s| !s.is_empty())
+            .cloned()
+            .collect()
+    }
+
     pub fn temp_dir(&self) -> PathBuf {
         self.cache_dir.clone().into()
     }
