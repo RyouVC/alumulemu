@@ -114,11 +114,11 @@ pub fn register<T: Importer>(id: &str, importer: T) {
 }
 
 /// Initialize the registry with default importers
-pub fn init_registry() {
+pub async fn init_registry() {
     info!("Initializing importer registry");
 
     // Register the NotUltranxImporter
-    register("ultranx", NotUltranxImporter::new());
+    register("ultranx", NotUltranxImporter::new().await);
 
     // Register the UrlImporter
     register("url", UrlImporter::new());
@@ -213,7 +213,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_basic() {
         // Initialize the registry
-        init_registry();
+        init_registry().await;
 
         // Test registry access
         let registry = IMPORTER_REGISTRY.read().unwrap();
@@ -227,7 +227,7 @@ mod tests {
     #[tokio::test]
     async fn test_import_ultranx() {
         // Initialize the registry
-        init_registry();
+        init_registry().await;
 
         // Test JSON import for UltraNX
         let json = r#"{"title_id": "0100000000000000", "download_type": "fullpkg"}"#;

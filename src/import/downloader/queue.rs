@@ -139,6 +139,7 @@ impl DownloadQueue {
         // Clone what we need to move into the task
         let url = item.url.clone();
         let output_path = item.output_path.clone();
+        let headers = item.headers.clone();
         let token_clone = cancellation_token.clone();
         // Save the progress transmitter for later use
         self.progress_watchers.insert(id_ulid, progress_tx.clone());
@@ -164,6 +165,7 @@ impl DownloadQueue {
                     &output_path,
                     internal_tx,
                     token_clone.clone(),
+                    headers.as_ref(),
                 )
                 .await;
 
@@ -408,7 +410,7 @@ impl DownloadQueue {
     /// hold a mutex lock across await points.
     pub fn start_download_in_background(source: super::models::ImportSource) -> Ulid {
         // Create the download item
-        let item = DownloadQueueItem::new(source.url, source.output_dir);
+        let item = DownloadQueueItem::new(source.url, source.output_dir, source.headers);
 
         // Get the handle - this only locks the mutex briefly
         let (id, mut handle) = {

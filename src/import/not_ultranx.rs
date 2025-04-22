@@ -1,3 +1,6 @@
+use crate::backend::kv_config::KvOptExt;
+use reqwest::header::{COOKIE, HeaderMap, HeaderValue};
+
 use super::{ImportError, ImportSource, Importer, Result};
 use scraper::{Html, Selector};
 
@@ -24,12 +27,40 @@ pub struct NotUltranxTitle {
     pub dlcs_url: Option<String>,
     pub full_pkg_url: Option<String>,
 }
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
+pub struct UltraNxDownloadConfig {
+    pub token: Option<String>,
+}
+
+impl KvOptExt for UltraNxDownloadConfig {
+    const KEY_NAME: &'static str = "ultranx_config";
+}
 
 impl NotUltranxImporter {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::new(),
+    pub async fn new() -> Self {
+        let mut headers = HeaderMap::new();
+        let config = UltraNxDownloadConfig::get()
+            .await
+            .unwrap_or_default()
+            .unwrap_or_default();
+        if let Some(token_value) = config.token {
+            if !token_value.is_empty() {
+                let cookie_value = format!("auth_token={}", token_value);
+                if let Ok(header_val) = HeaderValue::from_str(&cookie_value) {
+                    headers.insert(COOKIE, header_val);
+                } else {
+                    // Handle error: Invalid header value, maybe log it
+                    eprintln!("Warning: Invalid characters in auth_token cookie value.");
+                }
+            }
         }
+
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new()); // Fallback to default client on build error
+
+        Self { client }
     }
 
     // find a div with the class "download-buttons, and find all the <a> tags within it
@@ -101,11 +132,42 @@ impl Importer for NotUltranxImporter {
         let title = title.unwrap();
 
         // Determine the URL based on download type
+        // Clone and convert headers once
+        // Manually create headers based on current config state
+        let config = UltraNxDownloadConfig::get()
+            .await
+            .unwrap_or_default()
+            .unwrap_or_default(); // Fetch config again
+
+        let mut headers_map = std::collections::HashMap::new();
+
+        if let Some(token_value) = config.token {
+            if !token_value.is_empty() {
+                let cookie_value = format!("auth_token={}", token_value);
+                // Use reqwest::header::COOKIE constant for the key name for consistency
+                // Ensure the key is a String as required by HashMap<String, String>
+                headers_map.insert(reqwest::header::COOKIE.as_str().to_string(), cookie_value);
+            }
+        }
+        // If you needed to add other static headers, you could do it here:
+        // headers_map.insert("X-Custom-Header".to_string(), "SomeValue".to_string());
+        let headers_option = if headers_map.is_empty() {
+            None
+        } else {
+            Some(headers_map)
+        };
+
         match request.download_type {
-            NotUltranxDownloadType::Base => Ok(ImportSource::RemoteHttp(title.base_url)),
+            NotUltranxDownloadType::Base => Ok(ImportSource::RemoteHttp {
+                url: title.base_url,
+                headers: headers_option,
+            }),
             NotUltranxDownloadType::Update => {
                 if let Some(url) = title.update_url {
-                    Ok(ImportSource::RemoteHttp(url))
+                    Ok(ImportSource::RemoteHttp {
+                        url,
+                        headers: headers_option,
+                    })
                 } else {
                     Err(ImportError::Other(color_eyre::eyre::eyre!(
                         "Update not available for this title"
@@ -114,7 +176,11 @@ impl Importer for NotUltranxImporter {
             }
             NotUltranxDownloadType::Dlcs => {
                 if let Some(url) = title.dlcs_url {
-                    Ok(ImportSource::RemoteHttpArchive(url))
+                    // Assuming DLCs might be archives or multiple files handled by downloader
+                    Ok(ImportSource::RemoteHttpArchive {
+                        url,
+                        headers: headers_option,
+                    })
                 } else {
                     Err(ImportError::Other(color_eyre::eyre::eyre!(
                         "DLCs not available for this title"
@@ -123,7 +189,11 @@ impl Importer for NotUltranxImporter {
             }
             NotUltranxDownloadType::FullPkg => {
                 if let Some(url) = title.full_pkg_url {
-                    Ok(ImportSource::RemoteHttpArchive(url))
+                    // Assuming FullPkg might be an archive or multiple files
+                    Ok(ImportSource::RemoteHttpArchive {
+                        url,
+                        headers: headers_option,
+                    })
                 } else {
                     Err(ImportError::Other(color_eyre::eyre::eyre!(
                         "Full package not available for this title"

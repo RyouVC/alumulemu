@@ -20,7 +20,10 @@ impl Importer for UrlImporter {
 
     async fn import(&self, request: Self::ImportRequest) -> Result<ImportSource> {
         // Use the RemoteHttpAuto type to automatically determine if it's an archive
-        Ok(ImportSource::RemoteHttpAuto(request.url))
+        Ok(ImportSource::RemoteHttpAuto {
+            url: request.url,
+            headers: None,
+        })
     }
 
     fn name(&self) -> &'static str {
@@ -54,8 +57,9 @@ mod tests {
             .unwrap();
 
         match result {
-            ImportSource::RemoteHttpAuto(url) => {
+            ImportSource::RemoteHttpAuto { url, headers } => {
                 assert_eq!(url, "https://example.com/test.nsp");
+                assert!(headers.is_none(), "Headers should be None");
             }
             _ => panic!("Expected RemoteHttpAuto import source"),
         }

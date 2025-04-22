@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     fmt,
     path::{Path, PathBuf},
 };
@@ -98,26 +99,34 @@ pub struct DownloadQueueItem {
     pub output_path: PathBuf,
     pub progress: Progress,
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")] // Don't save headers to DB
+    pub headers: Option<HashMap<String, String>>,
 }
 
 impl DownloadQueueItem {
-    /// Creates a new `DownloadQueueItem` with the specified URL and output path
+    /// Creates a new `DownloadQueueItem` with the specified URL, output path, and optional headers
     ///
     /// # Arguments
     ///
     /// * `url` - The URL to download from
     /// * `output_path` - The path to save the downloaded file to (can be a directory)
+    /// * `headers` - Optional custom headers for the download request
     ///
     /// # Returns
     ///
     /// A new `DownloadQueueItem` with default values for other fields
-    pub fn new<P: AsRef<Path>>(url: impl Into<String>, output_path: P) -> Self {
+    pub fn new<P: AsRef<Path>>(
+        url: impl Into<String>,
+        output_path: P,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
         Self {
             id: None,
             url: url.into(),
             output_path: output_path.as_ref().to_path_buf(),
             progress: Progress::default(),
             created_at: None,
+            headers, // Add headers here
         }
     }
 
@@ -145,6 +154,7 @@ impl DownloadQueueItem {
 pub struct ImportSource {
     pub url: String,
     pub output_dir: PathBuf,
+    pub headers: Option<HashMap<String, String>>,
 }
 
 /// Parse filename from Content-Disposition header

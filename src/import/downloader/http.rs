@@ -9,6 +9,7 @@ use reqwest::{
     header::{self, HeaderMap, HeaderValue},
 };
 use std::{
+    collections::HashMap,
     io,
     path::{Path, PathBuf},
 };
@@ -61,16 +62,31 @@ impl Downloader {
     ) -> io::Result<PathBuf> {
         // Create a null channel that drops all progress updates
         let (tx, _) = mpsc::channel(10);
-        self.download_file_with_progress(url, output_path, tx).await
+        self.download_file_with_progress(url, output_path, tx, None).await
     }
 
-    pub async fn get_with_redirects(&self, url: &str) -> io::Result<Response> {
+    pub async fn get_with_redirects(&self, url: &str, headers: Option<&HashMap<String, String>>) -> io::Result<Response> {
         let mut current_url = url.to_string();
         let mut redirect_count = 0;
 
         loop {
+            // Build request with custom headers if provided
+            let mut request_builder = self.client.get(&current_url);
+            if let Some(custom_headers) = headers {
+                for (key, value) in custom_headers {
+                    match HeaderValue::from_str(value) {
+                        Ok(header_val) => {
+                            request_builder = request_builder.header(key, header_val);
+                        }
+                        Err(e) => {
+                            error!(header_key = %key, error = %e, "Invalid header value, skipping");
+                        }
+                    }
+                }
+            }
+
             // Send request
-            let response = match self.client.get(&current_url).send().await {
+            let response = match request_builder.send().await {
                 Ok(resp) => resp,
                 Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
             };
@@ -116,8 +132,9 @@ impl Downloader {
         url: &str,
         output_path: P,
         progress_tx: mpsc::Sender<Progress>,
+        headers: Option<&HashMap<String, String>>,
     ) -> io::Result<PathBuf> {
-        let response = self.get_with_redirects(url).await?;
+        let response = self.get_with_redirects(url, headers).await?;
 
         // Check if output_path is a directory
         let output_path_ref = output_path.as_ref();
@@ -222,13 +239,14 @@ impl Downloader {
         Ok(final_path)
     }
 
-    #[instrument(name = "download_file", level = "debug", skip(self, progress_tx, cancel_token, output_path), fields(url = %url))]
+    #[instrument(name = "download_file", level = "debug", skip(self, progress_tx, cancel_token, output_path, headers), fields(url = %url))]
     pub async fn download_file_with_progress_cancellable<P: AsRef<Path>>(
         &self,
         url: &str,
         output_path: P,
         progress_tx: mpsc::Sender<Progress>,
         cancel_token: CancellationToken,
+        headers: Option<&HashMap<String, String>>,
     ) -> io::Result<PathBuf> {
         trace!("Starting download with progress tracking");
 
@@ -269,6 +287,7 @@ impl Downloader {
                     progress_tx.clone(),
                     cancel_token.clone(),
                     downloaded_so_far,
+                    headers,
                 )
                 .await
             {
@@ -343,7 +362,6 @@ impl Downloader {
         }))
     }
 
-    // Internal function that does the actual download work, can be retried
     async fn download_with_retry_internal(
         &self,
         url: &str,
@@ -351,13 +369,27 @@ impl Downloader {
         progress_tx: mpsc::Sender<Progress>,
         cancel_token: CancellationToken,
         resume_from: u64,
+        headers: Option<&HashMap<String, String>>,
     ) -> io::Result<PathBuf> {
-        // Build the request with range header if resuming
+        // Build the request with range header if resuming and custom headers
         let mut request_builder = self.client.get(url);
         if resume_from > 0 {
             request_builder =
                 request_builder.header(header::RANGE, format!("bytes={}-", resume_from));
             info!(resume_from = resume_from, "Attempting to resume download");
+        }
+        // Apply custom headers
+        if let Some(custom_headers) = headers {
+            for (key, value) in custom_headers {
+                match HeaderValue::from_str(value) {
+                    Ok(header_val) => {
+                        request_builder = request_builder.header(key, header_val);
+                    }
+                    Err(e) => {
+                        error!(header_key = %key, error = %e, "Invalid header value, skipping");
+                    }
+                }
+            }
         }
 
         // Send the request
@@ -369,7 +401,7 @@ impl Downloader {
         // Handle redirects manually since we're not using automatic redirect following
         if response.status().is_redirection() {
             trace!("Following redirect manually");
-            let response = self.get_with_redirects(url).await?;
+            let response = self.get_with_redirects(url, headers).await?;
             return self
                 .process_response(
                     response,
@@ -378,6 +410,7 @@ impl Downloader {
                     progress_tx,
                     cancel_token,
                     resume_from,
+                    headers,
                 )
                 .await;
         }
@@ -390,11 +423,11 @@ impl Downloader {
             progress_tx,
             cancel_token,
             resume_from,
+            headers,
         )
         .await
     }
 
-    // Process the HTTP response and download the file
     async fn process_response(
         &self,
         response: Response,
@@ -403,6 +436,7 @@ impl Downloader {
         progress_tx: mpsc::Sender<Progress>,
         cancel_token: CancellationToken,
         resume_from: u64,
+        _headers: Option<&HashMap<String, String>>,
     ) -> io::Result<PathBuf> {
         trace!(status = %response.status(), "Got response");
 

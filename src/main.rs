@@ -374,7 +374,7 @@ async fn main() -> color_eyre::Result<()> {
     let config = config::config();
 
     // Initialize importer registry
-    init_registry();
+    init_registry().await;
     tracing::info!("Importer registry initialized");
 
     // create games directory

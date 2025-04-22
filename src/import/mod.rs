@@ -126,6 +126,7 @@
 
 use async_zip::tokio::read::seek::ZipFileReader;
 use downloader::{DOWNLOAD_QUEUE, DownloadQueueItem};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::{fs::File, io::BufReader};
@@ -232,19 +233,34 @@ pub enum ImportSource {
     /// (Not implemented) Generic remote import
     Remote,
     /// A remote file accessed via HTTP
-    RemoteHttp(String),
+    RemoteHttp {
+        url: String,
+        headers: Option<HashMap<String, String>>,
+    },
     /// A remote archive file accessed via HTTP that will be extracted
-    RemoteHttpArchive(String),
+    RemoteHttpArchive {
+        url: String,
+        headers: Option<HashMap<String, String>>,
+    },
     /// A remote HTTP source that will automatically determine if it's an archive based on the downloaded file extension
-    RemoteHttpAuto(String),
+    RemoteHttpAuto {
+        url: String,
+        headers: Option<HashMap<String, String>>,
+    },
     /// (Not implemented) Import from a repository
     Repository,
 }
 
 impl ImportSource {
     /// Creates a new RemoteHttpAuto import source which automatically determines type from file extension
-    pub fn new_remote_http_auto(url: impl Into<String>) -> Self {
-        Self::RemoteHttpAuto(url.into())
+    pub fn new_remote_http_auto(
+        url: impl Into<String>,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self::RemoteHttpAuto {
+            url: url.into(),
+            headers,
+        }
     }
 
     pub async fn process(&self) -> Result<(Vec<PathBuf>, Option<tempfile::TempDir>)> {
@@ -270,12 +286,12 @@ impl ImportSource {
                     .collect();
                 Ok((files, None))
             }
-            ImportSource::RemoteHttp(url) => {
-                let path = Self::download_http(url).await?;
+            ImportSource::RemoteHttp { url, headers } => {
+                let path = Self::download_http(url, headers.clone()).await?;
                 Ok((vec![path], None))
             }
-            ImportSource::RemoteHttpArchive(url) => {
-                let path = Self::download_http(url).await?;
+            ImportSource::RemoteHttpArchive { url, headers } => {
+                let path = Self::download_http(url, headers.clone()).await?;
                 let result = self.extract_archive(&path).await?;
                 // Delete the downloaded archive after successful extraction
                 if tokio::fs::remove_file(&path).await.is_err() {
@@ -285,8 +301,8 @@ impl ImportSource {
                 }
                 Ok(result)
             }
-            ImportSource::RemoteHttpAuto(url) => {
-                let path = Self::download_http(url).await?;
+            ImportSource::RemoteHttpAuto { url, headers } => {
+                let path = Self::download_http(url, headers.clone()).await?;
 
                 // Check if the downloaded file appears to be an archive based on extension
                 let is_archive = self.is_archive_file(&path);
@@ -296,7 +312,7 @@ impl ImportSource {
                     let result = self.extract_archive(&path).await?;
                     // Delete the downloaded archive after successful extraction
                     if tokio::fs::remove_file(&path).await.is_err() {
-                        debug!(archive = ?path, "Failed to remove downloaded archive file after extraction");
+                        debug!(archive = ?path, "Failed to remove downloaded archive file after successful extraction");
                     } else {
                         info!(archive = ?path, "Removed downloaded archive file after successful extraction");
                     }
@@ -342,30 +358,39 @@ impl ImportSource {
     }
 
     /// Creates a new RemoteHttp import source
-    pub fn new_remote_http(url: impl Into<String>) -> Self {
-        Self::RemoteHttp(url.into())
+    pub fn new_remote_http(
+        url: impl Into<String>,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self::RemoteHttp {
+            url: url.into(),
+            headers,
+        }
     }
 
     /// Creates a new RemoteHttpArchive import source
-    pub fn new_remote_http_archive(url: impl Into<String>) -> Self {
-        Self::RemoteHttpArchive(url.into())
+    pub fn new_remote_http_archive(
+        url: impl Into<String>,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self::RemoteHttpArchive {
+            url: url.into(),
+            headers,
+        }
     }
 
-    pub async fn download_http(url: &str) -> Result<PathBuf> {
+    pub async fn download_http(
+        url: &str,
+        headers: Option<HashMap<String, String>>,
+    ) -> Result<PathBuf> {
         let download_path = download_path();
-        let queue_item = DownloadQueueItem::new(url, download_path);
+        let queue_item = DownloadQueueItem::new(url, download_path, headers);
 
         // Create a scope to ensure the lock is dropped after getting the handle
         let mut handle = {
-            // Lock is acquired here
             let mut queue = DOWNLOAD_QUEUE.lock()?;
-
-            // Lock is automatically dropped here when queue goes out of scope
             queue.add(queue_item)
         };
-
-        // let mut handle = dl_queue.add(queue_item);
-        // drop(dl_queue);
 
         tracing::info!("Download added to queue with handle: {:?}", handle);
 
