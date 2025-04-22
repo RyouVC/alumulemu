@@ -199,3 +199,22 @@ pub struct ExtraSourcesConfig {
 impl KvOptExt for ExtraSourcesConfig {
     const KEY_NAME: &'static str = "extra_sources";
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtraBackendConfig {
+    pub import_titledb_on_start: bool,
+    pub import_indexes_on_start: bool,
+}
+
+impl Default for ExtraBackendConfig {
+    fn default() -> Self {
+        Self {
+            import_titledb_on_start: true,
+            import_indexes_on_start: true,
+        }
+    }
+}
+
+impl KvOptExt for ExtraBackendConfig {
+    const KEY_NAME: &'static str = "extra_backend_config";
+}

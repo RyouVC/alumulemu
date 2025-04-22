@@ -8,6 +8,7 @@ mod router;
 mod titledb;
 mod util;
 
+use backend::kv_config::{ExtraBackendConfig, KvOptExt};
 use color_eyre::Result;
 use cron::Schedule;
 use db::init_database;
@@ -367,10 +368,16 @@ async fn main() -> color_eyre::Result<()> {
 
     // Run the initial TitleDB import and schedule future imports
     let config_clone = config.clone();
+
+    let extra_cfg = ExtraBackendConfig::get().await?.unwrap_or_default();
+
     tokio::spawn(async move {
         // Run immediately the first time
-        if let Err(e) = import_titledb_background(config_clone.clone()).await {
-            tracing::error!("Initial TitleDB import failed: {}", e);
+
+        if extra_cfg.import_titledb_on_start {
+            if let Err(e) = import_titledb_background(config_clone.clone()).await {
+                tracing::error!("Initial TitleDB import failed: {}", e);
+            }
         }
 
         // Then schedule recurring imports
@@ -386,9 +393,11 @@ async fn main() -> color_eyre::Result<()> {
 
     // index importer job
     tokio::spawn(async move {
-        // Run the initial import of extra indexes
-        if let Err(e) = import_extra_indexes().await {
-            tracing::error!("Initial index import failed: {}", e);
+        // Run the initial import of extra indexes if configured
+        if extra_cfg.import_indexes_on_start {
+            if let Err(e) = import_extra_indexes().await {
+                tracing::error!("Initial index import failed: {}", e);
+            }
         }
 
         if let Err(e) = schedule_idx_downloads().await {
