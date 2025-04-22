@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 use std::time::Duration;
 use titledb::TitleDBImport;
+use tokio::signal;
 use util::download_titledb;
 
 static LOCALE: LazyLock<String> =
@@ -314,6 +315,32 @@ async fn schedule_titledb_imports(config: config::Config) -> Result<()> {
     }
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Signal received, starting graceful shutdown");
+}
+
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     dotenvy::dotenv().ok();
@@ -425,11 +452,16 @@ async fn main() -> color_eyre::Result<()> {
         Err(e) => tracing::warn!("Could not determine local address: {}", e),
     }
 
-    // Start the server with proper error handling
-    if let Err(e) = axum::serve(listener, app).await {
+    // Start the server with graceful shutdown
+    tracing::info!("Starting server...");
+    if let Err(e) = axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+    {
         tracing::error!("Server error: {}", e);
         return Err(color_eyre::eyre::eyre!("Server error: {}", e));
     }
 
+    tracing::info!("Server shut down gracefully");
     Ok(())
 }
