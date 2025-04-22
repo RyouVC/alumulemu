@@ -1,19 +1,25 @@
 //! Downloader API module
 
-use crate::import::downloader::{DOWNLOAD_QUEUE, DownloadQueueItem, DownloadStatus, Progress};
+use crate::import::downloader::{DOWNLOAD_QUEUE, DownloadStatus, Progress}; // Remove DownloadQueueItem
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
+use chrono::{DateTime, Utc}; // Add imports for chrono types
 use color_eyre::Result;
 use http::StatusCode;
 use serde_json::json;
 use std::collections::BTreeMap;
+use std::path::PathBuf; // Add import for PathBuf
 use ulid::Ulid;
 
-/// Combined DownloadQueueItem with its current Progress
+/// Combined DownloadQueueItem with its current Progress, excluding sensitive headers
 #[derive(Debug, serde::Serialize)]
 pub struct DownloadItemWithProgress {
-    pub item: DownloadQueueItem,
+    // Explicitly list fields from DownloadQueueItem (excluding headers and id) and Progress
+    pub url: String,
+    pub output_path: PathBuf,
+    pub created_at: Option<DateTime<Utc>>,
+    // Keep Progress nested
     pub progress: Progress,
 }
 
@@ -46,7 +52,18 @@ pub async fn get_downloads() -> Result<BTreeMap<Ulid, DownloadItemWithProgress>>
     // Process the vector outside of the MutexGuard's scope and use BTreeMap instead of HashMap
     let downloads = downloads_vec
         .into_iter()
-        .map(|(id, item, progress)| (id, DownloadItemWithProgress { item, progress }))
+        .map(|(id, item, progress)| {
+            (
+                id, // Keep Ulid as the key
+                DownloadItemWithProgress {
+                    // Construct the new struct without headers
+                    url: item.url,
+                    output_path: item.output_path,
+                    created_at: item.created_at,
+                    progress,
+                },
+            )
+        })
         .collect::<BTreeMap<Ulid, DownloadItemWithProgress>>();
 
     Ok(downloads)
@@ -71,7 +88,10 @@ pub async fn get_download(id: &Ulid) -> Result<Option<DownloadItemWithProgress>>
             .into_iter()
             .find(|(item_id, _, _)| item_id == id)
             .map(|(_, item, progress)| DownloadItemWithProgress {
-                item: item.clone(),
+                // Construct the new struct without headers
+                url: item.url.clone(),
+                output_path: item.output_path.clone(),
+                created_at: item.created_at,
                 progress,
             })
     };
