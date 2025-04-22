@@ -452,13 +452,26 @@ pub async fn index_from_existing_data() -> color_eyre::eyre::Result<Index> {
         // Create a title ID with version and file extension appended
         let versioned_title_id = format!("{}_v{}.{}", metadata.title_id, version_num, extension);
 
-        // Add the file with the versioned title ID to ensure we get the exact version and format
-        idx.add_file(
-            path,
-            "/api/get_game",
-            &formatted_name,
-            Some(&versioned_title_id),
-        );
+        // Construct the URL for the download endpoint
+        let url = format!("/api/get_game/{}#{}", versioned_title_id, formatted_name);
+
+        // Get the file size from the filesystem metadata
+        // This still requires filesystem access, but avoids using the `add_file` method's
+        // internal filesystem call and path manipulation logic.
+        let size = match std::fs::metadata(path) {
+             Ok(meta) => meta.len(),
+             Err(e) => {
+             tracing::warn!(
+                 "Failed to get filesystem metadata for {}: {}. Skipping entry.",
+                 metadata.path,
+                 e
+             );
+             continue; // Skip this entry if we can't get its size
+             }
+        };
+
+        // Add the file entry using the pre-constructed URL and size
+        idx.naive_add_file(&url, size);
     }
 
     Ok(idx)

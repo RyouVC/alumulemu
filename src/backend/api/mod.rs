@@ -1,4 +1,5 @@
 use crate::{
+    backend::kv_config::{KvOptExt, Motd}, // Add Motd import
     db::NspMetadata,
     index::{Index, TinfoilResponse},
     router::{AlumRes, index_from_existing_data},
@@ -16,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio_util::io::ReaderStream;
 
-use super::user::user_router;
+use super::{kv_config::ExtraSourcesConfig, user::user_router};
 
 pub mod downloader;
 pub mod metadata;
@@ -38,32 +39,8 @@ static INDEX_CACHE: Lazy<Arc<Mutex<IndexCache>>> = Lazy::new(|| {
     }))
 });
 
-pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
-    // Try to get cached version first
-    {
-        let cache = INDEX_CACHE.lock().unwrap();
-
-        // Check if cache exists and is still valid
-        if let (Some(cached_data), Some(timestamp)) = (&cache.data, cache.last_updated) {
-            let elapsed = timestamp.elapsed();
-            if elapsed < Duration::from_secs(CACHE_LIFETIME_SECONDS) {
-                tracing::debug!(
-                    "Serving tinfoil index from cache (age: {}s)",
-                    elapsed.as_secs()
-                );
-                return Ok(Json(cached_data.clone()));
-            }
-            tracing::debug!(
-                "Cache expired after {}s (max: {}s), regenerating",
-                elapsed.as_secs(),
-                CACHE_LIFETIME_SECONDS
-            );
-        } else {
-            tracing::debug!("No cached index available, generating new index");
-        }
-    }
-
-    // If we got here, we need to regenerate the cache
+/// Generates the Tinfoil index data, merging base data, extras, and Motd.
+async fn generate_tinfoil_index_data() -> AlumRes<Index> {
     let mut games = index_from_existing_data().await?;
 
     // Now, merge it with the extras if possible
@@ -71,20 +48,69 @@ pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
         extras.iter().for_each(|e_idx| {
             games.merge_file_index(e_idx.clone());
             games.merge_titledb(e_idx.clone());
-
             tracing::trace!("Merged extra index: {:?}", e_idx);
         });
     }
 
+    // Check for Motd and apply if set
+    // Check for Motd and apply if set and enabled
+    games.success = match Motd::get().await {
+        // Only assign the message if Motd is fetched successfully, enabled, and has a message.
+        Ok(Some(motd)) if motd.enabled && motd.message.is_some() => motd.message,
+        // In all other cases (error, no Motd, disabled, or empty message), assign None.
+        _ => None,
+    };
+
+    games.locations = ExtraSourcesConfig::get()
+        .await?
+        .map(|config| config.sources) // Extract the sources Vec if Some(config)
+        .unwrap_or_default(); // Use an empty Vec if None
+
+    Ok(games)
+}
+
+#[axum::debug_handler]
+pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
+    // Try to get cached version first
+    {
+        let cache = INDEX_CACHE.lock().unwrap();
+        if let (Some(cached_data), Some(timestamp)) = (&cache.data, cache.last_updated) {
+            // Check if cache is still valid
+            if timestamp.elapsed() < Duration::from_secs(CACHE_LIFETIME_SECONDS) {
+                tracing::debug!(
+                    "Serving tinfoil index from cache (age: {}s)",
+                    timestamp.elapsed().as_secs()
+                );
+                // Return a clone of the cached data
+                return Ok(Json(cached_data.clone()));
+            } else {
+                tracing::debug!(
+                    "Cache expired after {}s (max: {}s), regenerating",
+                    timestamp.elapsed().as_secs(),
+                    CACHE_LIFETIME_SECONDS
+                );
+                // Cache expired, proceed to regenerate below
+            }
+        } else {
+            tracing::debug!("No cached index available, generating new index");
+            // No cache, proceed to regenerate below
+        }
+        // Lock is dropped here
+    }
+
+    // If we got here, cache was missed or expired, regenerate the index
+    tracing::debug!("Generating new tinfoil index data");
+    let games = generate_tinfoil_index_data().await?;
+
     // Update the cache with new data
     {
         let mut cache = INDEX_CACHE.lock().unwrap();
-        cache.data = Some(games.clone());
+        cache.data = Some(games.clone()); // Clone data for the cache
         cache.last_updated = Some(Instant::now());
         tracing::info!("Updated tinfoil index cache");
-    }
+    } // Lock is dropped here
 
-    Ok(Json(games))
+    Ok(Json(games)) // Return the newly generated data
 }
 
 // Function to manually invalidate the cache if needed
