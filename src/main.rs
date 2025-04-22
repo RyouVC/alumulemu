@@ -51,7 +51,7 @@ async fn import_extra_indexes() -> Result<()> {
     let idx_to_addlist = config.backend_config.get_valid_extra_indexes();
 
     if idx_to_addlist.is_empty() {
-        info!("No extra indexes to import");
+        tracing::info!("No extra indexes to import");
         return Ok(());
     }
 
