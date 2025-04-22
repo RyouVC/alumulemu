@@ -37,10 +37,8 @@ WORKDIR /app/alu-panel
 RUN --mount=type=cache,target=/root/.pnpm-store \
     pnpm install
 
-# Copy Rust dependencies
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
 
+WORKDIR /app
 # Copy the rest of the source code
 COPY . .
 
