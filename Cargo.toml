@@ -27,7 +27,7 @@ serde_json = "1.0.140"
 # We'll support both RocksDB, SurrealKV, and TiKV
 # might cause binary bloat but its fiiine
 surrealdb = { version = "2.2.2", features = ["kv-rocksdb", "kv-surrealkv", "kv-tikv"] }
-tokio = { version = "1.44.0", features = ["full"] }
+tokio = { version = "1.44.2", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["io"] }
 tower-http = { version = "0.6.2", features = ["trace", "fs"] }
 tracing = { version = "0.1.41", features = ["log", "async-await"] }
