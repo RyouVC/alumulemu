@@ -114,6 +114,27 @@ impl NotUltranxImporter {
         Ok(Some(links))
     }
 
+    pub async fn get_dlc_links(&self, title_id: &str) -> Result<Option<Vec<String>>> {
+        let url = format!("{}/game/{}", WEB_URL, title_id);
+        let response = self.client.get(&url).send().await?;
+
+        if response.status() == 404 {
+            return Ok(None);
+        }
+
+        let body = response.text().await?;
+        let document = Html::parse_document(&body);
+        // Using a selector inspired by the user input, targeting links within #dlcsList
+        // Assuming the user wants all links within #dlcsList, not just one specific link.
+        let selector = Selector::parse("#dlcsList a").unwrap();
+        let links: Vec<String> = document
+            .select(&selector)
+            .filter_map(|element| element.value().attr("href").map(|href| href.to_string()))
+            .collect();
+
+        Ok(Some(links))
+    }
+
     pub async fn get_title(&self, title_id: &str) -> Result<Option<NotUltranxTitle>> {
         let links = self.get_download_links(title_id).await?;
 
@@ -148,6 +169,7 @@ pub enum NotUltranxDownloadType {
     Dlcs,
     #[default]
     FullPkg,
+    AllSplit,
 }
 
 impl Importer for NotUltranxImporter {
@@ -226,6 +248,25 @@ impl Importer for NotUltranxImporter {
                         "Full package not available for this title"
                     )))
                 }
+            }
+            NotUltranxDownloadType::AllSplit => {
+                let basegame_url = title.base_url;
+                let update_url = title.update_url;
+                let dlcs = self.get_dlc_links(&request.title_id).await?;
+                let dlcs_url = dlcs.unwrap_or_default();
+
+                let mut all_urls = vec![basegame_url];
+                if let Some(update_url) = update_url {
+                    all_urls.push(update_url);
+                }
+                all_urls.extend(dlcs_url);
+
+                tracing::debug!("All URLs: {:?}", all_urls);
+                // Assuming all URLs are valid and need to be downloaded
+                Ok(ImportSource::RemoteHttpAutoList {
+                    urls: all_urls,
+                    headers: headers_option,
+                })
             }
         }
     }

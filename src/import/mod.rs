@@ -126,19 +126,20 @@
 
 use async_zip::tokio::read::seek::ZipFileReader;
 use downloader::{DOWNLOAD_QUEUE, DownloadQueueItem};
+use futures::future::join_all;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::{fs::File, io::BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::{debug, info};
+pub mod dbi;
 pub mod downloader;
 pub mod import_utils;
 pub mod not_ultranx;
 pub mod registry;
 pub mod tests;
 pub mod url;
-pub mod dbi;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct NxDevice {
@@ -162,7 +163,6 @@ impl NxDevice {
         )
     }
 }
-
 
 #[derive(Error, Debug)]
 pub enum ImportError {
@@ -274,6 +274,11 @@ pub enum ImportSource {
     },
     /// (Not implemented) Import from a repository
     Repository,
+
+    RemoteHttpAutoList {
+        urls: Vec<String>,
+        headers: Option<HashMap<String, String>>,
+    },
 }
 
 impl ImportSource {
@@ -346,6 +351,81 @@ impl ImportSource {
                     info!(path = ?path, "Auto-detected regular file (non-archive)");
                     Ok((vec![path], None))
                 }
+            }
+
+            ImportSource::RemoteHttpAutoList { urls, headers } => {
+                let download_futures = urls
+                    .iter()
+                    .map(|url| Self::download_http(url, headers.clone()));
+
+                let download_results = join_all(download_futures).await;
+
+                let mut downloaded_paths = Vec::new();
+                for result in download_results {
+                    match result {
+                        Ok(path) => downloaded_paths.push(path),
+                        Err(e) => {
+                            // Decide how to handle individual download errors.
+                            // Option 1: Return the first error encountered.
+                            // return Err(e);
+                            // Option 2: Log the error and continue with successful downloads.
+                            tracing::error!("Failed to download one of the URLs: {}", e);
+                            continue;
+                            // Option 3: Collect all errors.
+                            // errors.push(e); // Requires defining `errors` Vec earlier.
+                        }
+                    }
+                }
+                // If collecting errors (Option 3), check if errors occurred and return appropriately.
+                // if !errors.is_empty() { ... }
+
+                let mut output_files = Vec::new();
+                let mut archive_paths = Vec::new();
+                let mut temp_dir = None; // We'll create this only if needed
+
+                // Separate archives from regular files
+                for path in downloaded_paths {
+                    if self.is_archive_file(&path) {
+                        archive_paths.push(path);
+                    } else {
+                        output_files.push(path); // Add non-archives directly
+                    }
+                }
+
+                // Process archives concurrently if any exist
+                if !archive_paths.is_empty() {
+                    let main_temp_dir = crate::util::tempdir()?; // Create one temp dir for all extractions
+                    let temp_path = main_temp_dir.path().to_path_buf(); // Get path for the async block
+
+                    let extraction_futures = archive_paths.into_iter().map(|path| {
+                        // Clone path and temp_path for the async block
+                        let path_clone = path.clone();
+                        let temp_path_clone = temp_path.clone();
+                        async move {
+                            // Use the new helper function to extract to the shared temp dir
+                            extract_archive_to(&path_clone, &temp_path_clone).await
+                        }
+                    });
+
+                    let extraction_results = join_all(extraction_futures).await;
+
+                    for result in extraction_results {
+                        match result {
+                            Ok(files) => output_files.extend(files),
+                            Err(e) => {
+                                // Handle extraction errors similarly to download errors
+                                // Close the temp dir before returning the error
+                                let _ = main_temp_dir.close();
+                                return Err(e);
+                                // Or log and continue, or collect errors
+                                // tracing::error!("Failed to extract an archive: {}", e);
+                            }
+                        }
+                    }
+                    temp_dir = Some(main_temp_dir); // Assign the temp dir if extractions happened
+                }
+
+                Ok((output_files, temp_dir))
             }
             ImportSource::Remote => unimplemented!(
                 "Generic Remote import source not implemented, this should be a generic remote import, but the details are not yet defined"
@@ -489,6 +569,23 @@ impl ImportSource {
 
         Ok((extracted_files, Some(temp_dir)))
     }
+}
+
+/// Helper function to extract an archive to a specific directory and delete the archive afterwards.
+/// Returns a list of paths to the extracted files.
+async fn extract_archive_to(archive_path: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
+    info!(archive = ?archive_path, destination = ?destination, "Extracting archive");
+
+    let extracted_files = extract_zip_to_directory(archive_path, destination).await?;
+
+    // Delete the archive after successful extraction
+    if tokio::fs::remove_file(archive_path).await.is_err() {
+        debug!(archive = ?archive_path, "Failed to remove archive file after extraction");
+    } else {
+        info!(archive = ?archive_path, "Removed archive file after successful extraction");
+    }
+
+    Ok(extracted_files)
 }
 
 pub type Result<T> = std::result::Result<T, ImportError>;

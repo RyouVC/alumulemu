@@ -123,6 +123,7 @@ const importers = {
     ultranx_fullpkg: "UltraNX (Full)",
     ultranx_base: "UltraNX (Base)",
     ultranx_update: "UltraNX (Update)",
+    ultranx_allsplit: "UltraNX (All, Split)",
     upload: "Upload file...",
     url: "Download from URL...",
 };
@@ -132,6 +133,7 @@ const disabledOptions = computed(() => ({
     ultranx_fullpkg: false,
     ultranx_base: false,
     ultranx_update: false,
+    ultranx_allsplit: false,
     upload: true, // Mark upload as disabled
     url: false
 }));
