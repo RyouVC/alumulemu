@@ -138,6 +138,31 @@ pub mod not_ultranx;
 pub mod registry;
 pub mod tests;
 pub mod url;
+pub mod dbi;
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct NxDevice {
+    pub serial: String,
+    pub device_id: String,
+}
+impl NxDevice {
+    const DBI_VERSION: &'static str = "781-ru";
+    const SWITCH_FIRMWARE: &'static str = "19.0.1E";
+    pub fn new(serial: String, device_id: String) -> Self {
+        Self { serial, device_id }
+    }
+
+    pub fn dbi_user_agent(&self) -> String {
+        format!(
+            "DBI/{dbi_ver} (FW: {fw_ver}; SN: {serial}; DeviceId: {device_id})",
+            dbi_ver = Self::DBI_VERSION,
+            fw_ver = Self::SWITCH_FIRMWARE,
+            serial = self.serial,
+            device_id = self.device_id
+        )
+    }
+}
+
 
 #[derive(Error, Debug)]
 pub enum ImportError {

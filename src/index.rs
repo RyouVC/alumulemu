@@ -105,7 +105,7 @@ impl TryFrom<crate::titledb::Title> for TinfoilTitleMeta {
 ///
 /// Reference: https://blawar.github.io/tinfoil/custom_index/
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FileEntry {
+pub struct TinfoilFileEntry {
     /// Path or URL to the file.
     /// Can be a relative HTTP path or some kind of Tinfoil path spec.
     /// For example, `/games/MyGame.nsp` will point to the current server with the specified path.
@@ -258,7 +258,7 @@ pub struct Index {
 
     /// File to be served to the client.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub files: Vec<FileEntry>,
+    pub files: Vec<TinfoilFileEntry>,
 
     /// Sub-directories to list to the client, if any.
     ///
@@ -356,7 +356,7 @@ impl Index {
             )
         };
 
-        let file = FileEntry { url, size };
+        let file = TinfoilFileEntry { url, size };
 
         self.files.push(file);
     }
@@ -375,7 +375,7 @@ impl Index {
 
     /// Naively adds a file to the index.
     pub fn naive_add_file(&mut self, url: &str, size: u64) {
-        let file_link = FileEntry {
+        let file_link = TinfoilFileEntry {
             url: url.to_string(),
             size,
         };

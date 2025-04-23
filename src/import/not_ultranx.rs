@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use crate::backend::kv_config::KvOptExt;
-use rand::{Rng, seq::IndexedRandom};
+use rand::seq::IndexedRandom;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue}; // Import the Rng trait
 
-use super::{ImportError, ImportSource, Importer, Result};
+use super::{ImportError, ImportSource, Importer, NxDevice, Result};
 use scraper::{Html, Selector};
 
 const WEB_URL: &str = "https://not.ultranx.ru/en";
@@ -29,30 +29,6 @@ pub struct NotUltranxTitle {
     pub update_url: Option<String>,
     pub dlcs_url: Option<String>,
     pub full_pkg_url: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct NxDevice {
-    pub serial: String,
-    pub device_id: String,
-}
-
-impl NxDevice {
-    const DBI_VERSION: &'static str = "781-ru";
-    const SWITCH_FIRMWARE: &'static str = "19.0.1E";
-    pub fn new(serial: String, device_id: String) -> Self {
-        Self { serial, device_id }
-    }
-
-    pub fn dbi_user_agent(&self) -> String {
-        format!(
-            "DBI/{dbi_ver} (FW: {fw_ver}; SN: {serial}; DeviceId: {device_id})",
-            dbi_ver = Self::DBI_VERSION,
-            fw_ver = Self::SWITCH_FIRMWARE,
-            serial = self.serial,
-            device_id = self.device_id
-        )
-    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
@@ -109,7 +85,6 @@ impl NotUltranxImporter {
             .unwrap_or_default();
 
         let headers = config.headers();
-
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
