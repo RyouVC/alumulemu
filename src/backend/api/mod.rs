@@ -8,20 +8,21 @@ use crate::{
 use axum::{
     Json, Router,
     extract::Path,
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::get,
 };
 use http::{StatusCode, header};
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use tera::{Context, Tera};
 use tokio_util::io::ReaderStream;
 
 use super::{kv_config::ExtraSourcesConfig, user::user_router};
 
+pub mod config;
 pub mod downloader;
 pub mod metadata;
-pub mod config;
 
 // Default cache lifetime in seconds (5 minutes)
 const CACHE_LIFETIME_SECONDS: u64 = 300;
@@ -112,6 +113,16 @@ pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
     } // Lock is dropped here
 
     Ok(Json(games)) // Return the newly generated data
+}
+
+pub async fn dbi_index() -> Html<String> {
+    let index = generate_tinfoil_index_data().await.unwrap_or_default();
+    let mut tera = Tera::default();
+    tera.add_raw_template("dbi.html", include_str!("../../../templates/dbi.html"))
+        .unwrap();
+    let mut ctx = Context::new();
+    ctx.insert("files", &index.files);
+    Html(tera.render("dbi.html", &ctx).unwrap())
 }
 
 // Function to manually invalidate the cache if needed
@@ -236,6 +247,7 @@ pub fn api_router() -> Router {
         .nest("/config", config::config_router())
         .merge(metadata::metadata_api()) // Use merge to maintain original paths
         .route("/tinfoil", get(tinfoil_index))
+        .route("/dbi", get(dbi_index))
         .route("/get_game/{download_id}", get(download_file));
 
     // Combine the routes

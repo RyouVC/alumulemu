@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Alumulemu</title>
+    </head>
+    <body>
+        {% for file in files %}
+        <li>
+            <a href="{{ file.url }}">{{ file.url | split(pat="#") | last }}</a>
+        </li>
+        {% endfor %}
+    </body>
+</html>

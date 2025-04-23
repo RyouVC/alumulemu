@@ -6,8 +6,6 @@ settings:
 
 importers:
 
-  .: {}
-
   alu-panel:
     dependencies:
       '@rsbuild/core':
