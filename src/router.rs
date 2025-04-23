@@ -9,7 +9,7 @@ use crate::util::format_game_name;
 use axum::{
     Json,
     extract::Request,
-    http::{StatusCode, Uri},
+    http::{StatusCode, Uri, header},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
 };
@@ -504,6 +504,23 @@ async fn normalize_trailing_slash(req: Request, next: Next) -> impl IntoResponse
 
 pub const TINFOIL_HEADERS: [&str; 3] = ["uid", "hauth", "uauth"];
 
+// Middleware to redirect DBI clients to /api/dbi when accessing root
+async fn dbi_redirect(req: Request, next: Next) -> impl IntoResponse {
+    // Only apply this middleware to the root path
+    if req.uri().path() == "/" {
+        // Check if user agent contains "DBI"
+        if let Some(user_agent) = req.headers().get(header::USER_AGENT) {
+            if let Ok(user_agent_str) = user_agent.to_str() {
+                if user_agent_str.contains("DBI") {
+                    tracing::debug!("DBI client detected at root path, redirecting to /api/dbi");
+                    return Redirect::permanent("/api/dbi").into_response();
+                }
+            }
+        }
+    }
+    next.run(req).await
+}
+
 // Middleware to redirect Tinfoil clients to /api/tinfoil when accessing root
 async fn tinfoil_redirect(req: Request, next: Next) -> impl IntoResponse {
     // Only apply this middleware to the root path
@@ -555,5 +572,6 @@ pub fn create_router() -> axum::Router {
     router
         .layer(middleware::from_fn(log_request))
         .layer(middleware::from_fn(normalize_trailing_slash))
+        .layer(middleware::from_fn(dbi_redirect))
         .layer(middleware::from_fn(tinfoil_redirect))
 }
