@@ -60,18 +60,18 @@
               <div class="space-y-2">
                 <p class="text-base-content/70 break-all">
                   <span class="font-semibold">URL:</span>
-                  {{ download.item.url }}
+                  {{ download.url }} <!-- Access url directly -->
                 </p>
                 <p class="text-base-content/70">
                   <span class="font-semibold">Status: </span>
-                    <span :class="{
+                  <span :class="{
                     'text-primary': getStatusString(download.progress.status) === 'Downloading',
                     'text-warning': getStatusString(download.progress.status) === 'Paused',
                     'text-success': getStatusString(download.progress.status) === 'Completed',
-                    'text-error': 
-                      getStatusString(download.progress.status) === 'Cancelled' || 
+                    'text-error':
+                      getStatusString(download.progress.status) === 'Cancelled' ||
                       getStatusString(download.progress.status).startsWith('Failed'),
-                    }">
+                  }">
                     {{ getStatusString(download.progress.status) }}
                   </span>
                 </p>

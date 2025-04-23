@@ -41,7 +41,10 @@ export interface DownloadQueueItem {
 
 // Combined structure returned by the API
 export interface DownloadItemWithProgress {
-  item: DownloadQueueItem;
+  id?: string; // Keep the ID if needed, added from computed property logic
+  url: string;
+  output_path: string;
+  created_at?: string;
   progress: Progress;
 }
 
@@ -79,7 +82,7 @@ export const getStatusString = (
 ): string => {
   console.debug("Getting status string for:", status);
   let result: string;
-  
+
   if (typeof status === "string") {
     result = status;
   } else if ("Failed" in status) {
@@ -88,7 +91,7 @@ export const getStatusString = (
     console.debug("Unknown status type:", status);
     result = "Unknown";
   }
-  
+
   console.debug("Returning status:", result);
   return result;
 };
