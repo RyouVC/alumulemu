@@ -21,6 +21,7 @@ use super::{kv_config::ExtraSourcesConfig, user::user_router};
 
 pub mod downloader;
 pub mod metadata;
+pub mod config;
 
 // Default cache lifetime in seconds (5 minutes)
 const CACHE_LIFETIME_SECONDS: u64 = 300;
@@ -232,6 +233,7 @@ pub fn api_router() -> Router {
     // Basic routes that all authenticated users can access (viewer level)
     let api_routes = Router::new()
         .nest("/downloads", downloader::downloader_api())
+        .nest("/config", config::config_router())
         .merge(metadata::metadata_api()) // Use merge to maintain original paths
         .route("/tinfoil", get(tinfoil_index))
         .route("/get_game/{download_id}", get(download_file));
