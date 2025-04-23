@@ -6,6 +6,9 @@
 //! It's repository format is simply a HTML scraper that parses a list of <a> tags, using the href attribute
 //! to retrieve the download link.
 
+use std::str::FromStr;
+
+use bytesize::ByteSize;
 use color_eyre::Result;
 use http::{HeaderMap, HeaderValue, header::USER_AGENT};
 use scraper::{Html, Selector};
@@ -23,18 +26,28 @@ pub struct DbiImporter {
 pub struct DbiFile {
     pub name: String,
     pub url: String,
+    // file size in approximate bytes
+    pub size: Option<ByteSize>,
 }
 
 impl DbiFile {
-    pub fn new(name: String, url: String) -> Self {
-        Self { name, url }
+    pub fn new(name: String, url: String, size: Option<ByteSize>) -> Self {
+        Self { name, url, size }
     }
 
     // <a href="https://example.com/file.zip">file.zip</a>
     pub fn from_html_atag(tag: &scraper::ElementRef) -> Self {
         let url = tag.value().attr("href").unwrap_or("").to_string();
-        let name = tag.text().collect::<Vec<_>>().join("");
-        Self::new(name, url)
+        let text = tag.text().collect::<Vec<_>>().join("");
+        // size is after name, delimited by ; (e.g. file.zip; 10 GB)
+        let size: Option<ByteSize> = text
+            .split(';')
+            .nth(1)
+            .map(|s| s.chars().filter(|c| !c.is_whitespace()).collect::<String>())
+            .and_then(|s| ByteSize::from_str(&s).ok());
+        // Remove the size from the name
+        let name = text.split(';').next().unwrap_or("").trim().to_string();
+        Self::new(name, url, size)
     }
 }
 
@@ -133,5 +146,3 @@ impl DbiImporter {
         Ok(directory)
     }
 }
-
-

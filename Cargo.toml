@@ -65,3 +65,4 @@ ulid = { version = "1.2.1", features = ["serde"] }
 urlencoding = "2.1.3"
 url = { version = "2.5.4", features = ["serde"] }
 rand = "0.9.1"
+bytesize = "2.0.1"
