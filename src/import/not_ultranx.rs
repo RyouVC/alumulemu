@@ -71,6 +71,9 @@ impl UltraNxDownloadConfig {
         ];
         let mut headers = HeaderMap::new();
 
+        // Add the User-Agent header
+        // i think they're trying to block requests now. lmfao.
+        // Use from_str instead of from_static as useragent is not static
         let random_user_agent = user_agents
             .choose(&mut rand::rng())
             .unwrap_or(&user_agents[0]);
@@ -107,9 +110,6 @@ impl NotUltranxImporter {
 
         let headers = config.headers();
 
-        // Add the User-Agent header
-        // i think they're trying to block requests now. lmfao.
-        // Use from_str instead of from_static as useragent is not static
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
