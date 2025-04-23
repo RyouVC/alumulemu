@@ -13,7 +13,7 @@ FROM base AS rust-base
 # Get rustup and install the stable toolchain
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN rustup install 1.85.1
+RUN rustup default stable
 # Configure Rust to use sccache
 ENV RUSTC_WRAPPER=/usr/bin/sccache
 ENV SCCACHE_DIR=/sccache

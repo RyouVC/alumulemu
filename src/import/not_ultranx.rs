@@ -1,5 +1,6 @@
 use crate::backend::kv_config::KvOptExt;
-use reqwest::header::{COOKIE, HeaderMap, HeaderValue};
+use rand::{Rng, seq::IndexedRandom};
+use reqwest::header::{COOKIE, HeaderMap, HeaderValue}; // Import the Rng trait
 
 use super::{ImportError, ImportSource, Importer, Result};
 use scraper::{Html, Selector};
@@ -27,9 +28,50 @@ pub struct NotUltranxTitle {
     pub dlcs_url: Option<String>,
     pub full_pkg_url: Option<String>,
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct NxDevice {
+    pub serial: String,
+    pub device_id: String,
+}
+
+impl NxDevice {
+    const DBI_VERSION: &'static str = "781-ru";
+    const SWITCH_FIRMWARE: &'static str = "19.0.1E";
+    pub fn new(serial: String, device_id: String) -> Self {
+        Self { serial, device_id }
+    }
+
+    pub fn dbi_user_agent(&self) -> String {
+        format!(
+            "DBI/{dbi_ver} (FW: {fw_ver}; SN: {serial}; DeviceId: {device_id})",
+            dbi_ver = Self::DBI_VERSION,
+            fw_ver = Self::SWITCH_FIRMWARE,
+            serial = self.serial,
+            device_id = self.device_id
+        )
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
 pub struct UltraNxDownloadConfig {
     pub token: Option<String>,
+    pub device: Option<NxDevice>,
+}
+
+impl UltraNxDownloadConfig {
+    pub fn headers(&self) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        if let Some(token_value) = &self.token {
+            if !token_value.is_empty() && self.device.is_none() {
+                let cookie_value = format!("auth_token={}", token_value);
+                if let Ok(header_val) = HeaderValue::from_str(&cookie_value) {
+                    headers.insert(COOKIE, header_val);
+                }
+            }
+        }
+        headers
+    }
 }
 
 impl KvOptExt for UltraNxDownloadConfig {
@@ -43,8 +85,37 @@ impl NotUltranxImporter {
             .await
             .unwrap_or_default()
             .unwrap_or_default();
+        let user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36", // windows
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240", // edge on windows
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_11) AppleWebKit/564.7 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/564.7 Edg/105.0.4557.73", // edge on macos
+            "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0", // firefox linux
+        ];
+
+        let useragent = {
+            if let Some(device) = &config.device {
+                device.dbi_user_agent()
+            } else {
+                // select random user agent from the list
+                user_agents
+                    .choose(&mut rand::rng())
+                    .unwrap_or(&user_agents[0])
+                    .to_string()
+            }
+        };
+
+        // Add the User-Agent header
+        // i think they're trying to block requests now. lmfao.
+        // Use from_str instead of from_static as useragent is not static
+        if let Ok(ua_header) = HeaderValue::from_str(&useragent) {
+            headers.insert(reqwest::header::USER_AGENT, ua_header);
+        } else {
+            // Handle error: Invalid header value, maybe log it
+            eprintln!("Warning: Invalid characters in User-Agent header value.");
+        }
+        //
         if let Some(token_value) = config.token {
-            if !token_value.is_empty() {
+            if config.device.is_none() && !token_value.is_empty() {
                 let cookie_value = format!("auth_token={}", token_value);
                 if let Ok(header_val) = HeaderValue::from_str(&cookie_value) {
                     headers.insert(COOKIE, header_val);

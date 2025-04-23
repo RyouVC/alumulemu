@@ -34,7 +34,6 @@ impl Downloader {
     pub fn new() -> Self {
         // Setup headers exactly like curl
         let mut headers = HeaderMap::new();
-        // headers.insert(header::USER_AGENT, HeaderValue::from_static("curl/8.9.1"));
         headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
 
         // Create a client that doesn't follow redirects automatically
@@ -62,10 +61,15 @@ impl Downloader {
     ) -> io::Result<PathBuf> {
         // Create a null channel that drops all progress updates
         let (tx, _) = mpsc::channel(10);
-        self.download_file_with_progress(url, output_path, tx, None).await
+        self.download_file_with_progress(url, output_path, tx, None)
+            .await
     }
 
-    pub async fn get_with_redirects(&self, url: &str, headers: Option<&HashMap<String, String>>) -> io::Result<Response> {
+    pub async fn get_with_redirects(
+        &self,
+        url: &str,
+        headers: Option<&HashMap<String, String>>,
+    ) -> io::Result<Response> {
         let mut current_url = url.to_string();
         let mut redirect_count = 0;
 
@@ -442,12 +446,19 @@ impl Downloader {
 
         // Check for errors first
         if !response.status().is_success() {
+            let status = response.status();
+            // Attempt to read the response body for more context
+            let body_text = match response.text().await {
+                Ok(text) => text,
+                Err(e) => format!("(Failed to read response body: {})", e),
+            };
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "HTTP error: {} {}",
-                    response.status().as_u16(),
-                    response.status().as_str()
+                    "HTTP error: {} {}\nResponse body: {}",
+                    status.as_u16(),
+                    status.as_str(),
+                    body_text // Include the body in the error message
                 ),
             ));
         }
