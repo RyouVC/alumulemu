@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::backend::kv_config::KvOptExt;
 use rand::{Rng, seq::IndexedRandom};
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue}; // Import the Rng trait
@@ -61,15 +63,33 @@ pub struct UltraNxDownloadConfig {
 
 impl UltraNxDownloadConfig {
     pub fn headers(&self) -> HeaderMap {
+        let user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36", // windows
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240", // edge on windows
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_11) AppleWebKit/564.7 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/564.7 Edg/105.0.4557.73", // edge on macos
+            "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0", // firefox linux
+        ];
         let mut headers = HeaderMap::new();
+
+        let random_user_agent = user_agents
+            .choose(&mut rand::rng())
+            .unwrap_or(&user_agents[0]);
+        if let Ok(ua_header) = HeaderValue::from_str(random_user_agent) {
+            headers.insert(reqwest::header::USER_AGENT, ua_header);
+        }
+
         if let Some(token_value) = &self.token {
-            if !token_value.is_empty() && self.device.is_none() {
+            if self.device.is_none() && !token_value.is_empty() {
                 let cookie_value = format!("auth_token={}", token_value);
                 if let Ok(header_val) = HeaderValue::from_str(&cookie_value) {
                     headers.insert(COOKIE, header_val);
+                } else {
+                    // Handle error: Invalid header value, maybe log it
+                    eprintln!("Warning: Invalid characters in auth_token cookie value.");
                 }
             }
         }
+
         headers
     }
 }
@@ -80,51 +100,16 @@ impl KvOptExt for UltraNxDownloadConfig {
 
 impl NotUltranxImporter {
     pub async fn new() -> Self {
-        let mut headers = HeaderMap::new();
         let config = UltraNxDownloadConfig::get()
             .await
             .unwrap_or_default()
             .unwrap_or_default();
-        let user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36", // windows
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240", // edge on windows
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_11) AppleWebKit/564.7 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/564.7 Edg/105.0.4557.73", // edge on macos
-            "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0", // firefox linux
-        ];
 
-        let useragent = {
-            if let Some(device) = &config.device {
-                device.dbi_user_agent()
-            } else {
-                // select random user agent from the list
-                user_agents
-                    .choose(&mut rand::rng())
-                    .unwrap_or(&user_agents[0])
-                    .to_string()
-            }
-        };
+        let headers = config.headers();
 
         // Add the User-Agent header
         // i think they're trying to block requests now. lmfao.
         // Use from_str instead of from_static as useragent is not static
-        if let Ok(ua_header) = HeaderValue::from_str(&useragent) {
-            headers.insert(reqwest::header::USER_AGENT, ua_header);
-        } else {
-            // Handle error: Invalid header value, maybe log it
-            eprintln!("Warning: Invalid characters in User-Agent header value.");
-        }
-        //
-        if let Some(token_value) = config.token {
-            if config.device.is_none() && !token_value.is_empty() {
-                let cookie_value = format!("auth_token={}", token_value);
-                if let Ok(header_val) = HeaderValue::from_str(&cookie_value) {
-                    headers.insert(COOKIE, header_val);
-                } else {
-                    // Handle error: Invalid header value, maybe log it
-                    eprintln!("Warning: Invalid characters in auth_token cookie value.");
-                }
-            }
-        }
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
@@ -210,23 +195,19 @@ impl Importer for NotUltranxImporter {
             .unwrap_or_default()
             .unwrap_or_default(); // Fetch config again
 
-        let mut headers_map = std::collections::HashMap::new();
-
-        if let Some(token_value) = config.token {
-            if !token_value.is_empty() {
-                let cookie_value = format!("auth_token={}", token_value);
-                // Use reqwest::header::COOKIE constant for the key name for consistency
-                // Ensure the key is a String as required by HashMap<String, String>
-                headers_map.insert(reqwest::header::COOKIE.as_str().to_string(), cookie_value);
-            }
-        }
+        let headers_map = config.headers();
         // If you needed to add other static headers, you could do it here:
         // headers_map.insert("X-Custom-Header".to_string(), "SomeValue".to_string());
         let headers_option = if headers_map.is_empty() {
             None
         } else {
             Some(headers_map)
-        };
+        }
+        .map(|h| {
+            h.iter()
+                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                .collect::<HashMap<String, String>>()
+        });
 
         match request.download_type {
             NotUltranxDownloadType::Base => Ok(ImportSource::RemoteHttp {
