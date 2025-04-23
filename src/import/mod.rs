@@ -133,6 +133,8 @@ use thiserror::Error;
 use tokio::{fs::File, io::BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::{debug, info};
+
+use crate::nsp::read_cnmt_merged;
 pub mod dbi;
 pub mod downloader;
 pub mod import_utils;
@@ -515,29 +517,82 @@ impl ImportSource {
         let rom_dir = Path::new(&rom_dir);
 
         let (output_files, temp_dir) = self.process().await?;
-
+        // Process each output file
         for file in output_files {
-            // Determine if this is from a temp dir extraction
-            if let Some(temp_dir) = &temp_dir {
-                if let Ok(relative) = file.strip_prefix(temp_dir.path()) {
-                    // Preserve directory structure by using the relative path
-                    let dest = rom_dir.join(relative);
-
-                    // Ensure parent directory exists
-                    if let Some(parent) = dest.parent() {
-                        tokio::fs::create_dir_all(parent).await?;
+            // 1. Try to read CNMT data to get the title ID
+            let base_title_id = match file.to_str() {
+                Some(path_str) => match read_cnmt_merged(path_str) {
+                    Ok(cnmt) => {
+                        let mut title_id = cnmt.get_title_id_string();
+                        let len = title_id.len();
+                        if len >= 3 {
+                            // Replace the last 3 characters with "000"
+                            title_id.replace_range(len - 3.., "000");
+                            Some(title_id)
+                        } else {
+                            tracing::warn!(file = ?file, "Title ID too short to modify: {}", title_id);
+                            None
+                        }
                     }
+                    Err(e) => {
+                        tracing::warn!(file = ?file, "Failed to read CNMT data: {}", e);
+                        None // Could not determine title ID
+                    }
+                },
+                None => {
+                    tracing::warn!(file = ?file, "File path contains invalid UTF-8");
+                    None
+                }
+            };
 
-                    recursive_move(&file, &dest).await?;
+            // 2. Determine the destination directory (base title ID subdir or root rom_dir)
+            let target_base_dir = match &base_title_id {
+                Some(id) => rom_dir.join(id),
+                None => rom_dir.to_path_buf(), // Place in root if ID couldn't be determined
+            };
+
+            // Ensure the base target directory exists
+            tokio::fs::create_dir_all(&target_base_dir).await?;
+
+            // 3. Determine the final destination path, preserving structure if from temp dir
+            let dest = if let Some(temp_dir) = &temp_dir {
+                // Check if the file originated from the temporary directory
+                if let Ok(relative_path) = file.strip_prefix(temp_dir.path()) {
+                    // Preserve the subdirectory structure within the base title ID folder
+                    target_base_dir.join(relative_path)
                 } else {
-                    // Fallback for files not in temp_dir
-                    let dest = rom_dir.join(file.file_name().unwrap());
-                    recursive_move(&file, &dest).await?;
+                    // Should not happen if temp_dir exists and file is from output_files,
+                    // but handle as a fallback: place directly in target_base_dir
+                    target_base_dir.join(file.file_name().ok_or_else(|| {
+                        ImportError::Other(color_eyre::eyre::eyre!(
+                            "Failed to get filename for: {:?}",
+                            file
+                        ))
+                    })?)
                 }
             } else {
-                // For direct files (not from extraction)
-                let dest = rom_dir.join(file.file_name().unwrap());
-                recursive_move(&file, &dest).await?;
+                // File was not from a temporary directory (e.g., single local file)
+                target_base_dir.join(file.file_name().ok_or_else(|| {
+                    ImportError::Other(color_eyre::eyre::eyre!(
+                        "Failed to get filename for: {:?}",
+                        file
+                    ))
+                })?)
+            };
+
+            // 4. Ensure the final destination's parent directory exists
+            if let Some(parent) = dest.parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+
+            // 5. Move the file
+            if let Err(e) = recursive_move(&file, &dest).await {
+                tracing::error!(source = ?file, destination = ?dest, "Failed to move file: {}", e);
+                // Decide if we should return the error or just log and continue
+                // For now, let's return the error to stop the import on failure
+                return Err(e);
+            } else {
+                info!(source = ?file, destination = ?dest, "Successfully moved file");
             }
         }
 
