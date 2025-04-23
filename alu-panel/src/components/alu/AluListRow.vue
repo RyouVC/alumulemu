@@ -120,14 +120,18 @@ interface Toast {
 }
 
 const importers = {
-    ultranx: "UltraNX",
+    ultranx_fullpkg: "UltraNX (Full)",
+    ultranx_base: "UltraNX (Base)",
+    ultranx_update: "UltraNX (Update)",
     upload: "Upload file...",
     url: "Download from URL...",
 };
 
 // Add a computed property to identify disabled options
 const disabledOptions = computed(() => ({
-    ultranx: false,
+    ultranx_fullpkg: false,
+    ultranx_base: false,
+    ultranx_update: false,
     upload: true, // Mark upload as disabled
     url: false
 }));
@@ -205,18 +209,19 @@ const showToastNotification = (message: string, type = "alert-info", duration = 
 /**
  * Handles importing a game from UltraNX
  * @param gameMetadata - The game metadata object
+ * @param type - The type of import (e.g., "fullpkg", "base", "update")
  */
-const handleUltraNXImport = async (gameMetadata: TitleMetadata) => {
+const handleUltraNXImport = async (gameMetadata: TitleMetadata, type: string) => {
     if (isImporting.value) return; // Don't allow multiple simultaneous imports
     isImporting.value = true;
     try {
         // No need for conversion since we're already using TitleMetadata
-        const result = await importGameUltraNX(gameMetadata);
-        showToastNotification("Import started successfully", "alert-success");
-        emitImport("ultranx", result);
+        const result = await importGameUltraNX(gameMetadata, type);
+        showToastNotification(`Import (${type}) started successfully`, "alert-success");
+        emitImport("ultranx", result); // Keep the event name generic
     } catch (error) {
-        console.error("Error importing from UltraNX:", error);
-        const errorMsg = error instanceof Error ? error.message : "Error importing from UltraNX";
+        console.error(`Error importing ${type} from UltraNX:`, error);
+        const errorMsg = error instanceof Error ? error.message : `Error importing ${type} from UltraNX`;
         showToastNotification(errorMsg, "alert-error");
     } finally {
         isImporting.value = false;
@@ -254,10 +259,13 @@ const handleImportOption = (key: string) => {
 
     if (key === "url") {
         isUrlDialogOpen.value = true;
-    } else if (key === "ultranx") {
-        handleUltraNXImport(props.game);
+    } else if (key.startsWith("ultranx_")) {
+        // Extract the type ('fullpkg', 'base', 'update') from the key
+        const importType = key.substring("ultranx_".length);
+        handleUltraNXImport(props.game, importType);
     } else {
-        emitImport(key);
+        // Handle other potential import types like 'upload' if enabled in the future
+        emitImport(key); // Emit for other types if needed
     }
 };
 

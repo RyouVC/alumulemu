@@ -49,11 +49,12 @@ export async function getImporters(): Promise<ImporterInfo[]> {
  * @returns Promise with the import result
  */
 export async function importGameUltraNX(
-  titleMetadata: TitleMetadata
+  titleMetadata: TitleMetadata,
+  dl_type: string
 ): Promise<ImportStartResponse> {
   const payload = {
     title_id: titleMetadata.titleId,
-    download_type: "fullpkg",
+    download_type: dl_type,
   };
 
   // Use the new JSON-based endpoint
