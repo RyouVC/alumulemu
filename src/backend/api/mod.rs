@@ -252,8 +252,7 @@ pub async fn decode_dbi_path(
 
                 tracing::debug!("DBI client detected, original path: {}", path);
 
-                let decoded_path =
-                    decode_html_entities(path).map_err(|_| StatusCode::BAD_REQUEST)?;
+                let decoded_path = path.replace("&#x2F;", "/");
 
                 tracing::debug!("Decoded path: {}", decoded_path);
 
