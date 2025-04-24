@@ -67,3 +67,4 @@ url = { version = "2.5.4", features = ["serde"] }
 rand = "0.9.1"
 bytesize = "2.0.1"
 tera = "1.20.0"
+html-entities = "0.1.0"

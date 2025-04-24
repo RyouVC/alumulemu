@@ -6,7 +6,7 @@
     <body>
         {% for file in files %}
         <li>
-            <a href="{{ file.url }}">{{ file.url | split(pat="#") | last }}</a>
+            <a href="{{ file.url | split(pat="#") | first }}">{{ file.url | split(pat="#") | last }}</a>
         </li>
         {% endfor %}
     </body>
