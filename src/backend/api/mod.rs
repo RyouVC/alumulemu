@@ -1,3 +1,4 @@
+use super::{kv_config::ExtraSourcesConfig, user::user_router};
 use crate::{
     backend::kv_config::{KvOptExt, Motd}, // Add Motd import
     db::NspMetadata,
@@ -8,17 +9,19 @@ use crate::{
 use axum::{
     Json, Router,
     extract::Path,
+    http::{Request, Uri},
+    middleware::Next,
     response::{Html, IntoResponse, Response},
     routing::get,
 };
+
+use html_entities::decode_html_entities;
 use http::{StatusCode, header};
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tera::{Context, Tera};
 use tokio_util::io::ReaderStream;
-
-use super::{kv_config::ExtraSourcesConfig, user::user_router};
 
 pub mod config;
 pub mod downloader;
@@ -256,6 +259,36 @@ pub async fn download_file(
     }
 }
 
+pub async fn decode_dbi_path(
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Only decode if it's a DBI client
+    if let Some(user_agent) = req.headers().get(header::USER_AGENT) {
+        if let Ok(user_agent_str) = user_agent.to_str() {
+            if user_agent_str.contains("DBI") {
+                let uri = req.uri();
+                let path = uri.path();
+
+                tracing::debug!("DBI client detected, original path: {}", path);
+
+                let decoded_path = path.replace("&#x2F;", "/");
+
+                tracing::debug!("Decoded path: {}", decoded_path);
+
+                // Create new URI with decoded path
+                let new_uri = Uri::try_from(&decoded_path).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+                let mut req = req;
+                *req.uri_mut() = new_uri;
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
+    Ok(next.run(req).await)
+}
+
 /// Function to create the main API router
 pub fn api_router() -> Router {
     // User router requires admin access
@@ -263,6 +296,7 @@ pub fn api_router() -> Router {
 
     // Basic routes that all authenticated users can access (viewer level)
     let api_routes = Router::new()
+        .layer(axum::middleware::from_fn(decode_dbi_path))
         .nest("/downloads", downloader::downloader_api())
         .nest("/config", config::config_router())
         .merge(metadata::metadata_api()) // Use merge to maintain original paths
