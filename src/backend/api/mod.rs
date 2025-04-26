@@ -115,12 +115,32 @@ pub async fn tinfoil_index() -> AlumRes<Json<Index>> {
     Ok(Json(games)) // Return the newly generated data
 }
 
-pub async fn dbi_index() -> Html<String> {
+pub async fn dbi_index(headers: axum::http::HeaderMap) -> Html<String> {
     let index = generate_tinfoil_index_data().await.unwrap_or_default();
     let mut tera = Tera::default();
+    tera.autoescape_on(vec![]);
     tera.add_raw_template("dbi.html", include_str!("../../../templates/dbi.html"))
         .unwrap();
     let mut ctx = Context::new();
+
+    // Get the protocol (http or https) and host from headers
+    let proto = if headers
+        .get("x-forwarded-proto")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("http")
+        == "https"
+    {
+        "https"
+    } else {
+        "http"
+    };
+    let host = headers
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost");
+    let base_url = format!("{}://{}/api", proto, host);
+
+    ctx.insert("base_url", &base_url);
     ctx.insert("files", &index.files);
     Html(tera.render("dbi.html", &ctx).unwrap())
 }

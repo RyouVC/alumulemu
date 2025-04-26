@@ -5,9 +5,7 @@
     </head>
     <body>
         {% for file in files %}
-        <li>
-            <a href="{{ file.url }}">{{ file.url | split(pat="#") | last }}</a>
-        </li>
+        <a href="{{ base_url }}{{ file.url | trim_start_matches(pat="/api") | split(pat="#") | first }}">{{ file.url | split(pat="#") | last }}</a><br>
         {% endfor %}
     </body>
 </html>
