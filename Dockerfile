@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     libclang-dev \
-    sccache \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS rust-base
@@ -14,14 +13,10 @@ FROM base AS rust-base
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup default stable
-# Configure Rust to use sccache
-ENV RUSTC_WRAPPER=/usr/bin/sccache
-ENV SCCACHE_DIR=/sccache
-ENV SCCACHE_CACHE_SIZE=5G
 
 FROM rust-base AS node-base
 # Install Node.js
-RUN curl -sL https://deb.nodesource.com/setup_23.x | bash 
+RUN curl -sL https://deb.nodesource.com/setup_23.x | bash
 RUN apt-get update && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 # Install PNPM
 RUN corepack enable
@@ -43,8 +38,7 @@ WORKDIR /app
 COPY . .
 
 # Build the Rust project
-RUN --mount=type=cache,target=/sccache \
-    --mount=type=cache,target=/root/.cargo/registry \
+RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
     cargo build --release
 
@@ -68,4 +62,3 @@ ENV ALU_HOST="0.0.0.0:3000"
 ENV ALU_CACHE_DIR="/var/cache/alumulemu"
 EXPOSE 3000
 CMD ["/app/alumulemu"]
-
