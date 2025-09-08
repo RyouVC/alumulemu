@@ -106,6 +106,9 @@ jobs:
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
+        env:
+          RUSTC_WRAPPER: ${{ contains(join(fromJSON('["' + github.job + '"]')), 'arm64') && '' || '/usr/bin/sccache' }}
+          SCCACHE_DISABLE: ${{ contains(join(fromJSON('["' + github.job + '"]')), 'arm64') && '1' || '0' }}
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
