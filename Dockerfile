@@ -38,9 +38,7 @@ WORKDIR /app
 COPY . .
 
 # Build the Rust project
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    cargo build --release
+RUN cargo build --release
 
 # Frontend build
 WORKDIR /app/alu-panel
